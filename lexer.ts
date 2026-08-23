@@ -24,7 +24,7 @@ export class Lexer {
     #isWhitespace = (c: string) => /^[ \t\n\r\v\f]$/.test(c)
 
     isEOF = () => this.#current >= this.#end
-    #peek = () => this.#source[this.#current]
+    #peek = () => this.#source[this.#current] ?? ""
     #peekNext = () => this.#source[this.#current + 1] ?? null
     #advance = () => {
         this.#current++
@@ -35,8 +35,36 @@ export class Lexer {
     #makeToken = (type: TokenType) => new Token(type, this.#word())
 
     #skipWhitespace = () => {
-        while (!this.isEOF() && this.#isWhitespace(this.#peek())) {
-            this.#advance()
+        while (!this.isEOF()) {
+            if (this.#isWhitespace(this.#peek())) {
+                this.#advance()
+                continue
+            }
+
+            if (this.#peek() == "/" && this.#peekNext() == "/") {
+                while (!this.isEOF() && this.#peek() !== "\n") {
+                    this.#advance()
+                }
+                continue
+            }
+
+            if (this.#peek() == "/" && this.#peekNext() == "*") {
+                this.#advance()
+                this.#advance()
+                while (
+                    !this.isEOF() &&
+                    this.#peek() !== "*" &&
+                    this.#peekNext() !== "/"
+                ) {
+                    this.#advance()
+                }
+                this.#advance()
+                this.#advance()
+
+                continue
+            }
+
+            break
         }
     }
 
