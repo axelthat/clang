@@ -1,11 +1,13 @@
 import { Token, type TokenType } from "./token.ts"
 
+export type Keyword = "int" | "void" | "return"
+
 export class Lexer {
     #start: number
     #current: number
     #end: number
     #source: string
-    #keywords: ReadonlyMap<string, true> = new Map([
+    #keywords: ReadonlyMap<Keyword, true> = new Map([
         ["int", true],
         ["void", true],
         ["return", true],
@@ -73,7 +75,7 @@ export class Lexer {
             this.#advance()
         }
 
-        if (!this.#keywords.has(this.#word())) {
+        if (!this.#keywords.has(this.#word() as Keyword)) {
             return this.#makeToken("identifier")
         }
 
@@ -105,7 +107,7 @@ export class Lexer {
         return this.#makeToken("string")
     }
 
-    scan = (): Token => {
+    next = (): Token => {
         this.#skipWhitespace()
         this.#start = this.#current
 

@@ -1,4 +1,4 @@
-const source = "Hello World"
-let current = 0
-current++
-console.log(source[current - 1])
+let current = {name: "Hello"}
+let previous = current
+current = {name: "Mama"}
+console.log(previous)
