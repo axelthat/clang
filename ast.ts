@@ -14,7 +14,15 @@ export type Statement = {
     expression: Expression
 }
 
-export type Expression = {
-    type: "constant"
-    value: number
-}
+export type Expression =
+    | {
+          type: "constant"
+          value: number
+      }
+    | {
+          type: "unary"
+          operator: UnaryOperator
+          expression: Expression
+      }
+
+export type UnaryOperator = "complement" | "negate"

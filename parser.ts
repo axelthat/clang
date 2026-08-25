@@ -3,6 +3,7 @@ import type {
     FunctionDefinition,
     Program,
     Statement,
+    UnaryOperator,
 } from "./ast.ts"
 import type { Keyword, Lexer } from "./lexer.ts"
 import type { Token, TokenType } from "./token.ts"
@@ -65,9 +66,25 @@ export class Parser {
     }
 
     #parseExpression = (): Expression => {
-        return {
-            type: "constant",
-            value: Number(this.#expect("number").value),
+        const current = this.#advance()
+
+        if (current.type === "number") {
+            return {
+                type: "constant",
+                value: Number(current.value),
+            }
+        } else if (current.type === "complement" || current.type === "negate") {
+            return {
+                type: "unary",
+                operator: current.type as UnaryOperator,
+                expression: this.#parseExpression(),
+            }
+        } else if (current.type === "lparen") {
+            const expr = this.#parseExpression()
+            this.#expect("rparen")
+            return expr
+        } else {
+            throw new Error("Malformed expression")
         }
     }
 

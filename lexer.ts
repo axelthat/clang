@@ -137,6 +137,12 @@ export class Lexer {
                 return this.#makeToken("rparen")
             case ";":
                 return this.#makeToken("semi")
+            case "~":
+                return this.#makeToken("complement")
+            case "-":
+                return this.#makeToken(
+                    this.#peek() === "-" ? "decrement" : "negate",
+                )
             default:
                 throw new Error(`Unknown token: "${this.#word()}"`)
         }

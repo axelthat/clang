@@ -8,6 +8,9 @@ export type TokenType =
     | "number"
     | "string"
     | "semi"
+    | "complement"
+    | "negate"
+    | "decrement"
     | "eof"
 
 export class Token {

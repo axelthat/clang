@@ -1,4 +1,2 @@
-let current = {name: "Hello"}
-let previous = current
-current = {name: "Mama"}
-console.log(previous)
+let value = 5
+console.log(~~5)
