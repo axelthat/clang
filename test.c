@@ -1,5 +1,7 @@
+#include <stdio.h>
+
 int main(void)
 {
-    volatile int x = 2;
-    return ~(-x);
+    printf("%d", 190 % 8 + 4 * 3 - 50 / 5);
+    return 0;
 }

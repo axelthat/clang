@@ -67,7 +67,7 @@ function test() {
     }
     // const lexer = new Lexer(`
     // int main(void) {
-    //     return 1 * (2 + 3);
+    //     return 190 % 8 + 4 * 3;
     // }
     //         `)
     // // while (!lexer.isEOF()) {
@@ -75,13 +75,13 @@ function test() {
     // // }
     // const parser = new Parser(lexer)
     // // parser.parse()
-    // console.log(JSON.stringify(parser.parse(), null, 4))
-    // // const tacky = new Tacky(parser.parse())
-    // // // console.log(JSON.stringify(tacky.tackle(), null, 4))
-    // // const codegen = new Codegen(tacky.tackle())
-    // // const data = codegen.gen()
-    // // writeFileSync("program.s", data, "utf8")
-    // // console.log(data)
+    // // console.log(JSON.stringify(parser.parse(), null, 4))
+    // const tacky = new Tacky(parser.parse())
+    // // console.log(JSON.stringify(tacky.tackle(), null, 4))
+    // const codegen = new Codegen(tacky.tackle())
+    // const data = codegen.gen()
+    // writeFileSync("program.s", data, "utf8")
+    // console.log(data)
 }
 
 test()

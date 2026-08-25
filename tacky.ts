@@ -6,6 +6,12 @@ import type {
 } from "./ast.ts"
 
 type TackyUnaryOperator = "negate" | "complement"
+type TackyBinaryOperator =
+    | "add"
+    | "negate"
+    | "multiply"
+    | "divide"
+    | "remainder"
 
 type TackyConstant = {
     type: "constant"
@@ -24,6 +30,13 @@ export type TackyInstruction =
           type: "unary"
           operator: TackyUnaryOperator
           source: TackyValue
+          destination: TackyVariable
+      }
+    | {
+          type: "binary"
+          operator: TackyBinaryOperator
+          source1: TackyValue
+          source2: TackyValue
           destination: TackyVariable
       }
     | {
@@ -108,6 +121,26 @@ export class Tacky {
                 type: "unary",
                 operator: expression.operator,
                 source,
+                destination,
+            })
+
+            return destination
+        }
+
+        if (expression.type === "binary") {
+            const left = this.#tackleExpression(expression.left, instructions)
+            const right = this.#tackleExpression(expression.right, instructions)
+
+            const destination: TackyVariable = {
+                type: "variable",
+                name: this.#getTmpVar(),
+            }
+
+            instructions.push({
+                type: "binary",
+                operator: expression.operator,
+                source1: left,
+                source2: right,
                 destination,
             })
 
