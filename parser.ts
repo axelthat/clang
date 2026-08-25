@@ -1,4 +1,5 @@
 import type {
+    BinaryOperator,
     Expression,
     FunctionDefinition,
     Program,
@@ -7,6 +8,14 @@ import type {
 } from "./ast.ts"
 import type { Keyword, Lexer } from "./lexer.ts"
 import type { Token, TokenType } from "./token.ts"
+
+const BINARY_PRECEDENCE = {
+    add: 45,
+    negate: 45,
+    multiply: 50,
+    divide: 50,
+    remainder: 50,
+} as const
 
 export class Parser {
     #lexer: Lexer
@@ -23,6 +32,10 @@ export class Parser {
         this.#current = this.#lexer.next()
         return previous
     }
+    #getPrecedence = (type: TokenType) =>
+        type in BINARY_PRECEDENCE
+            ? BINARY_PRECEDENCE[type as keyof typeof BINARY_PRECEDENCE]
+            : -1
 
     #parseProgram = (): Program => {
         return {
@@ -55,7 +68,7 @@ export class Parser {
     #parseStatement = (): Statement => {
         this.#expect("keyword", "return")
 
-        const expression = this.#parseExpression()
+        const expression = this.#parseExpression(0)
 
         this.#expect("semi")
 
@@ -65,7 +78,26 @@ export class Parser {
         }
     }
 
-    #parseExpression = (): Expression => {
+    #parseExpression = (minPrecedence: number): Expression => {
+        let left = this.#parseFactor()
+
+        while (this.#getPrecedence(this.#peek().type) >= minPrecedence) {
+            const operator = this.#advance()
+            const right = this.#parseExpression(
+                this.#getPrecedence(operator.type) + 1,
+            )
+            left = {
+                type: "binary",
+                operator: operator.type as BinaryOperator,
+                left,
+                right,
+            }
+        }
+
+        return left
+    }
+
+    #parseFactor = (): Expression => {
         const current = this.#advance()
 
         if (current.type === "number") {
@@ -73,19 +105,23 @@ export class Parser {
                 type: "constant",
                 value: Number(current.value),
             }
-        } else if (current.type === "complement" || current.type === "negate") {
+        }
+
+        if (current.type === "complement" || current.type === "negate") {
             return {
                 type: "unary",
                 operator: current.type as UnaryOperator,
-                expression: this.#parseExpression(),
+                expression: this.#parseFactor(),
             }
-        } else if (current.type === "lparen") {
-            const expr = this.#parseExpression()
+        }
+
+        if (current.type === "lparen") {
+            const expr = this.#parseExpression(0)
             this.#expect("rparen")
             return expr
-        } else {
-            throw new Error("Malformed expression")
         }
+
+        throw new Error("Malformed expression")
     }
 
     #expect = (type: TokenType, value?: Keyword) => {

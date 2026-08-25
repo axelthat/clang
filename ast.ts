@@ -24,5 +24,18 @@ export type Expression =
           operator: UnaryOperator
           expression: Expression
       }
+    | {
+          type: "binary"
+          operator: BinaryOperator
+          left: Expression
+          right: Expression
+      }
 
 export type UnaryOperator = "complement" | "negate"
+
+export type BinaryOperator =
+    | "add"
+    | "negate"
+    | "multiply"
+    | "divide"
+    | "remainder"

@@ -143,6 +143,14 @@ export class Lexer {
                 return this.#makeToken(
                     this.#peek() === "-" ? "decrement" : "negate",
                 )
+            case "+":
+                return this.#makeToken("add")
+            case "*":
+                return this.#makeToken("multiply")
+            case "/":
+                return this.#makeToken("divide")
+            case "%":
+                return this.#makeToken("remainder")
             default:
                 throw new Error(`Unknown token: "${this.#word()}"`)
         }

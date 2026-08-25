@@ -11,6 +11,10 @@ export type TokenType =
     | "complement"
     | "negate"
     | "decrement"
+    | "add"
+    | "multiply"
+    | "divide"
+    | "remainder"
     | "eof"
 
 export class Token {
