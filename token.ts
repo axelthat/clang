@@ -1,3 +1,5 @@
+import type { BinaryOperator } from "./ast.ts"
+
 export type TokenType =
     | "keyword"
     | "identifier"
@@ -9,12 +11,10 @@ export type TokenType =
     | "string"
     | "semi"
     | "complement"
-    | "negate"
     | "decrement"
-    | "add"
-    | "multiply"
-    | "divide"
-    | "remainder"
+    | "assign"
+    | "not"
+    | BinaryOperator
     | "eof"
 
 export class Token {

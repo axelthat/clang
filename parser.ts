@@ -10,8 +10,27 @@ import type { Keyword, Lexer } from "./lexer.ts"
 import type { Token, TokenType } from "./token.ts"
 
 const BINARY_PRECEDENCE = {
+    or: 5,
+    and: 10,
+
+    bor: 15,
+    xor: 20,
+    band: 25,
+
+    eq: 30,
+    ne: 30,
+
+    lt: 35,
+    le: 35,
+    gt: 35,
+    ge: 35,
+
+    lshift: 40,
+    rshift: 40,
+
     add: 45,
-    negate: 45,
+    subtract: 45,
+
     multiply: 50,
     divide: 50,
     remainder: 50,
@@ -107,7 +126,11 @@ export class Parser {
             }
         }
 
-        if (current.type === "complement" || current.type === "negate") {
+        if (
+            current.type === "complement" ||
+            current.type === "subtract" ||
+            current.type === "not"
+        ) {
             return {
                 type: "unary",
                 operator: current.type as UnaryOperator,

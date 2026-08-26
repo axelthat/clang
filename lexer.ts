@@ -124,6 +124,14 @@ export class Lexer {
         if (/^[A-Za-z_]$/.test(this.#peek())) {
             return this.#keyword()
         }
+        // temp
+        if (this.#peek() === "#") {
+            while (!this.isEOF() && this.#peek() !== "\n") {
+                this.#advance()
+            }
+            this.#advance()
+            return this.next()
+        }
 
         const c = this.#advance()
         switch (c) {
@@ -140,9 +148,11 @@ export class Lexer {
             case "~":
                 return this.#makeToken("complement")
             case "-":
-                return this.#makeToken(
-                    this.#peek() === "-" ? "decrement" : "negate",
-                )
+                if (this.#peek() === "-") {
+                    this.#advance()
+                    return this.#makeToken("decrement")
+                }
+                return this.#makeToken("subtract")
             case "+":
                 return this.#makeToken("add")
             case "*":
@@ -151,6 +161,52 @@ export class Lexer {
                 return this.#makeToken("divide")
             case "%":
                 return this.#makeToken("remainder")
+            case "&":
+                if (this.#peek() === "&") {
+                    this.#advance()
+                    return this.#makeToken("and")
+                }
+                return this.#makeToken("band")
+            case "|":
+                if (this.#peek() === "|") {
+                    this.#advance()
+                    return this.#makeToken("or")
+                }
+                return this.#makeToken("bor")
+            case "^":
+                return this.#makeToken("xor")
+            case "=":
+                if (this.#peek() === "=") {
+                    this.#advance()
+                    return this.#makeToken("eq")
+                }
+                return this.#makeToken("assign")
+            case ">":
+                if (this.#peek() === ">") {
+                    this.#advance()
+                    return this.#makeToken("rshift")
+                }
+                if (this.#peek() === "=") {
+                    this.#advance()
+                    return this.#makeToken("ge")
+                }
+                return this.#makeToken("gt")
+            case "<":
+                if (this.#peek() === "<") {
+                    this.#advance()
+                    return this.#makeToken("lshift")
+                }
+                if (this.#peek() === "=") {
+                    this.#advance()
+                    return this.#makeToken("le")
+                }
+                return this.#makeToken("lt")
+            case "!":
+                if (this.#peek() === "=") {
+                    this.#advance()
+                    return this.#makeToken("ne")
+                }
+                return this.#makeToken("not")
             default:
                 throw new Error(`Unknown token: "${this.#word()}"`)
         }

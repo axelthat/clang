@@ -1,17 +1,14 @@
 import type {
+    BinaryOperator,
     Expression,
     FunctionDefinition,
     Program,
     Statement,
+    UnaryOperator,
 } from "./ast.ts"
 
-type TackyUnaryOperator = "negate" | "complement"
-type TackyBinaryOperator =
-    | "add"
-    | "negate"
-    | "multiply"
-    | "divide"
-    | "remainder"
+type TackyUnaryOperator = UnaryOperator
+type TackyBinaryOperator = Exclude<BinaryOperator, "and" | "or">
 
 type TackyConstant = {
     type: "constant"
@@ -40,6 +37,29 @@ export type TackyInstruction =
           destination: TackyVariable
       }
     | {
+          type: "copy"
+          source: TackyValue
+          destination: TackyVariable
+      }
+    | {
+          type: "jump"
+          target: string
+      }
+    | {
+          type: "jump_if_zero"
+          condition: TackyValue
+          target: string
+      }
+    | {
+          type: "jump_if_not_zero"
+          condition: TackyValue
+          target: string
+      }
+    | {
+          type: "label"
+          name: string
+      }
+    | {
           type: "return"
           value: TackyValue
       }
@@ -58,6 +78,7 @@ export type TackyFunctionDefinition = {
 export class Tacky {
     #program: Program
     #tmpVarCounter = 0
+    #tmpLabelCounter = 0
 
     constructor(program: Program) {
         this.#program = program
@@ -67,6 +88,12 @@ export class Tacky {
         const p = this.#tmpVarCounter
         this.#tmpVarCounter++
         return `tmp.${p}`
+    }
+
+    #getLabel = (name?: string) => {
+        const p = this.#tmpLabelCounter
+        this.#tmpLabelCounter++
+        return `.L${name ?? "label"}_${p}`
     }
 
     #tackleProgram = (program: Program): TackyProgram => {
@@ -128,21 +155,139 @@ export class Tacky {
         }
 
         if (expression.type === "binary") {
-            const left = this.#tackleExpression(expression.left, instructions)
-            const right = this.#tackleExpression(expression.right, instructions)
-
             const destination: TackyVariable = {
                 type: "variable",
                 name: this.#getTmpVar(),
             }
 
-            instructions.push({
-                type: "binary",
-                operator: expression.operator,
-                source1: left,
-                source2: right,
-                destination,
-            })
+            if (expression.operator === "and") {
+                const falseLabel = this.#getLabel("false")
+                const endLabel = this.#getLabel()
+
+                const left = this.#tackleExpression(
+                    expression.left,
+                    instructions,
+                )
+
+                instructions.push({
+                    type: "jump_if_zero",
+                    condition: left,
+                    target: falseLabel,
+                })
+
+                const right = this.#tackleExpression(
+                    expression.right,
+                    instructions,
+                )
+
+                instructions.push(
+                    {
+                        type: "jump_if_zero",
+                        condition: right,
+                        target: falseLabel,
+                    },
+                    {
+                        type: "copy",
+                        source: {
+                            type: "constant",
+                            value: 1,
+                        },
+                        destination,
+                    },
+                    {
+                        type: "jump",
+                        target: endLabel,
+                    },
+                    {
+                        type: "label",
+                        name: falseLabel,
+                    },
+                    {
+                        type: "copy",
+                        source: {
+                            type: "constant",
+                            value: 0,
+                        },
+                        destination,
+                    },
+                    {
+                        type: "label",
+                        name: endLabel,
+                    },
+                )
+            } else if (expression.operator === "or") {
+                const trueLabel = this.#getLabel("true")
+                const endLabel = this.#getLabel()
+
+                const left = this.#tackleExpression(
+                    expression.left,
+                    instructions,
+                )
+
+                instructions.push({
+                    type: "jump_if_not_zero",
+                    condition: left,
+                    target: trueLabel,
+                })
+
+                const right = this.#tackleExpression(
+                    expression.right,
+                    instructions,
+                )
+
+                instructions.push(
+                    {
+                        type: "jump_if_not_zero",
+                        condition: right,
+                        target: trueLabel,
+                    },
+                    {
+                        type: "copy",
+                        source: {
+                            type: "constant",
+                            value: 0,
+                        },
+                        destination,
+                    },
+                    {
+                        type: "jump",
+                        target: endLabel,
+                    },
+                    {
+                        type: "label",
+                        name: trueLabel,
+                    },
+                    {
+                        type: "copy",
+                        source: {
+                            type: "constant",
+                            value: 1,
+                        },
+                        destination,
+                    },
+                    {
+                        type: "label",
+                        name: endLabel,
+                    },
+                )
+            } else {
+                const left = this.#tackleExpression(
+                    expression.left,
+                    instructions,
+                )
+                const right = this.#tackleExpression(
+                    expression.right,
+                    instructions,
+                )
+
+                instructions.push({
+                    type: "binary",
+                    operator: expression.operator,
+                    source1: left,
+                    source2: right,
+                    destination,
+                })
+            }
 
             return destination
         }
@@ -152,6 +297,7 @@ export class Tacky {
 
     tackle = (): TackyProgram => {
         this.#tmpVarCounter = 0
+        this.#tmpLabelCounter = 0
         return this.#tackleProgram(this.#program)
     }
 }

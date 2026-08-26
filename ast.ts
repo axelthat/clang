@@ -31,11 +31,35 @@ export type Expression =
           right: Expression
       }
 
-export type UnaryOperator = "complement" | "negate"
+export type UnaryOperator = "complement" | "subtract" | "not"
 
 export type BinaryOperator =
+    // Arithmetic
     | "add"
-    | "negate"
+    | "subtract"
     | "multiply"
     | "divide"
     | "remainder"
+
+    // Shift
+    | "lshift"
+    | "rshift"
+
+    // Relational
+    | "lt"
+    | "le"
+    | "gt"
+    | "ge"
+
+    // Equality
+    | "eq"
+    | "ne"
+
+    // Bitwise
+    | "band"
+    | "xor"
+    | "bor"
+
+    // Logical
+    | "and"
+    | "or"
