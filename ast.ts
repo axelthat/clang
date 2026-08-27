@@ -37,6 +37,12 @@ export type Statement =
     | {
           type: "null"
       }
+    | {
+          type: "if"
+          condition: Expression
+          then: Statement
+          else: Statement | null
+      }
 
 export type Expression =
     | {
@@ -62,6 +68,12 @@ export type Expression =
           type: "assignment"
           left: Expression
           right: Expression
+      }
+    | {
+          type: "conditional"
+          condition: Expression
+          then: Expression
+          else: Expression
       }
 
 export type UnaryOperator = "complement" | "subtract" | "not"

@@ -14,6 +14,8 @@ import type { Token, TokenType } from "./token.ts"
 const BINARY_PRECEDENCE = {
     assign: 1,
 
+    question: 3,
+
     or: 5,
     and: 10,
 
@@ -154,6 +156,33 @@ export class Parser {
             }
         }
 
+        if (token.type === "keyword" && token.value === "if") {
+            this.#advance()
+
+            this.#expect("lparen")
+            const condition = this.#parseExpression(0)
+            this.#expect("rparen")
+
+            const then = this.#parseStatement()
+            let else_: Statement | null = null
+
+            if (
+                this.#peek().type === "keyword" &&
+                this.#peek().value === "else"
+            ) {
+                this.#advance()
+
+                else_ = this.#parseStatement()
+            }
+
+            return {
+                type: "if",
+                condition,
+                then,
+                else: else_,
+            }
+        }
+
         const expression = this.#parseExpression(0)
         this.#expect("semi")
 
@@ -166,7 +195,10 @@ export class Parser {
     #parseExpression = (minPrecedence: number): Expression => {
         let left = this.#parseFactor()
 
-        while (this.#getPrecedence(this.#peek().type) >= minPrecedence) {
+        while (
+            minPrecedence > -1 &&
+            this.#getPrecedence(this.#peek().type) >= minPrecedence
+        ) {
             if (this.#peek().type === "assign") {
                 const current = this.#advance()
                 const right = this.#parseExpression(
@@ -176,6 +208,20 @@ export class Parser {
                     type: "assignment",
                     left,
                     right,
+                }
+            } else if (this.#peek().type === "question") {
+                const current = this.#advance()
+                const middle = this.#parseExpression(0)
+                this.#expect("colon")
+
+                const right = this.#parseExpression(
+                    this.#getPrecedence(current.type),
+                )
+                left = {
+                    type: "conditional",
+                    condition: left,
+                    then: middle,
+                    else: right,
                 }
             } else {
                 const operator = this.#advance()

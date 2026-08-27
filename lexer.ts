@@ -1,6 +1,6 @@
 import { Token, type TokenType } from "./token.ts"
 
-export type Keyword = "int" | "void" | "return"
+export type Keyword = "int" | "void" | "return" | "if" | "else"
 
 export class Lexer {
     #start: number
@@ -11,6 +11,8 @@ export class Lexer {
         ["int", true],
         ["void", true],
         ["return", true],
+        ["if", true],
+        ["else", true],
     ])
 
     constructor(source: string) {
@@ -207,6 +209,10 @@ export class Lexer {
                     return this.#makeToken("ne")
                 }
                 return this.#makeToken("not")
+            case "?":
+                return this.#makeToken("question")
+            case ":":
+                return this.#makeToken("colon")
             default:
                 throw new Error(`Unknown token: "${this.#word()}"`)
         }

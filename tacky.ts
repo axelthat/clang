@@ -176,6 +176,59 @@ export class Tacky {
             return instructions
         }
 
+        if (statement.type === "if") {
+            const condition = this.#tackleExpression(
+                statement.condition,
+                instructions,
+            )
+
+            if (statement.else === null) {
+                const endLabel = this.#getLabel("end_if")
+
+                instructions.push({
+                    type: "jump_if_zero",
+                    condition,
+                    target: endLabel,
+                })
+
+                instructions.push(...this.#tackleStatement(statement.then))
+                instructions.push({
+                    type: "label",
+                    name: endLabel,
+                })
+
+                return instructions
+            }
+
+            const elseLabel = this.#getLabel("else")
+            const endLabel = this.#getLabel("end_if")
+
+            instructions.push({
+                type: "jump_if_zero",
+                condition,
+                target: elseLabel,
+            })
+
+            instructions.push(
+                ...this.#tackleStatement(statement.then),
+                {
+                    type: "jump",
+                    target: endLabel,
+                },
+                {
+                    type: "label",
+                    name: elseLabel,
+                },
+                ...this.#tackleStatement(statement.else),
+                {
+                    type: "label",
+                    name: endLabel,
+                },
+            )
+
+            return instructions
+        }
+
         if (statement.type === "null") {
             return instructions
         }
@@ -242,6 +295,65 @@ export class Tacky {
                 source,
                 destination,
             })
+
+            return destination
+        }
+
+        if (expression.type === "conditional") {
+            const destination: TackyVariable = {
+                type: "variable",
+                name: this.#getTmpVar(),
+            }
+            const elseLabel = this.#getLabel("conditional_else")
+            const endLabel = this.#getLabel("conditional_end")
+            const condition = this.#tackleExpression(
+                expression.condition,
+                instructions,
+            )
+
+            instructions.push({
+                type: "jump_if_zero",
+                condition,
+                target: elseLabel,
+            })
+
+            const thenValue = this.#tackleExpression(
+                expression.then,
+                instructions,
+            )
+
+            instructions.push(
+                {
+                    type: "copy",
+                    source: thenValue,
+                    destination,
+                },
+                {
+                    type: "jump",
+                    target: endLabel,
+                },
+                {
+                    type: "label",
+                    name: elseLabel,
+                },
+            )
+
+            const elseValue = this.#tackleExpression(
+                expression.else,
+                instructions,
+            )
+
+            instructions.push(
+                {
+                    type: "copy",
+                    source: elseValue,
+                    destination,
+                },
+                {
+                    type: "label",
+                    name: endLabel,
+                },
+            )
 
             return destination
         }

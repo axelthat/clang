@@ -15,6 +15,8 @@ export type TokenType =
     | "assign"
     | "not"
     | BinaryOperator
+    | "question"
+    | "colon"
     | "eof"
 
 export class Token {

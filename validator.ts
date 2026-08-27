@@ -86,6 +86,17 @@ export class Validator {
             }
         }
 
+        if (statement.type === "if") {
+            return {
+                type: "if",
+                condition: this.#validateExpression(statement.condition),
+                then: this.#validateStatement(statement.then),
+                else: statement.else
+                    ? this.#validateStatement(statement.else)
+                    : null,
+            }
+        }
+
         return {
             type: "null",
         }
@@ -127,6 +138,15 @@ export class Validator {
                 type: "unary",
                 operator: expression.operator,
                 expression: this.#validateExpression(expression.expression),
+            }
+        }
+
+        if (expression.type === "conditional") {
+            return {
+                type: "conditional",
+                condition: this.#validateExpression(expression.condition),
+                then: this.#validateExpression(expression.then),
+                else: this.#validateExpression(expression.else),
             }
         }
 

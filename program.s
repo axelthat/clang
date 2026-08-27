@@ -4,11 +4,14 @@ main:
     movq %rsp, %rbp
     subq $16, %rsp
 
-    movl $1, -4(%rbp)
-    movl $2, -8(%rbp)
-    movl $4, -8(%rbp)
-    movl -8(%rbp), %r10d
-    movl %r10d, -4(%rbp)
+    movl $0, %r10d
+    cmpl $0, %r10d
+    je .Lconditional_else_0
+    movl $2, -4(%rbp)
+    jmp .Lconditional_end_1
+.Lconditional_else_0:
+    movl $3, -4(%rbp)
+.Lconditional_end_1:
     movl -4(%rbp), %eax
     jmp .Lreturn_main
     movl $0, %eax
