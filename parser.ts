@@ -1,5 +1,7 @@
 import type {
     BinaryOperator,
+    BlockItem,
+    Declaration,
     Expression,
     FunctionDefinition,
     Program,
@@ -10,6 +12,8 @@ import type { Keyword, Lexer } from "./lexer.ts"
 import type { Token, TokenType } from "./token.ts"
 
 const BINARY_PRECEDENCE = {
+    assign: 1,
+
     or: 5,
     and: 10,
 
@@ -73,7 +77,14 @@ export class Parser {
         this.#expect("rparen")
         this.#expect("lbrace")
 
-        const body = this.#parseStatement()
+        const body: BlockItem[] = []
+
+        while (this.#peek().type !== "rbrace") {
+            if (this.#peek().type === "eof") {
+                throw new Error("Expected '}', before eof")
+            }
+            body.push(this.#parseBlockItem())
+        }
 
         this.#expect("rbrace")
 
@@ -84,15 +95,70 @@ export class Parser {
         }
     }
 
-    #parseStatement = (): Statement => {
-        this.#expect("keyword", "return")
+    #parseBlockItem = (): BlockItem => {
+        const token = this.#peek()
+        if (token.type === "keyword" && token.value === "int") {
+            return {
+                type: "declaration",
+                declaration: this.#parseDeclaration(),
+            }
+        }
 
-        const expression = this.#parseExpression(0)
+        return {
+            type: "statement",
+            statement: this.#parseStatement(),
+        }
+    }
+
+    #parseDeclaration = (): Declaration => {
+        this.#expect("keyword", "int")
+
+        const name = this.#expect("identifier")
+
+        let init: Expression | null = null
+
+        if (this.#peek().value === "=") {
+            this.#advance()
+            init = this.#parseExpression(0)
+        }
 
         this.#expect("semi")
 
         return {
-            type: "return",
+            type: "declaration",
+            name: name.value!,
+            init,
+        }
+    }
+
+    #parseStatement(): Statement {
+        const token = this.#peek()
+
+        if (token.type === "keyword" && token.value === "return") {
+            this.#advance()
+
+            const expression = this.#parseExpression(0)
+            this.#expect("semi")
+
+            return {
+                type: "return",
+                expression,
+            }
+        }
+
+        if (token.type === "semi") {
+            this.#advance()
+
+            return {
+                type: "null",
+            }
+        }
+
+        const expression = this.#parseExpression(0)
+        this.#expect("semi")
+
+        return {
+            type: "expression",
             expression,
         }
     }
@@ -101,15 +167,27 @@ export class Parser {
         let left = this.#parseFactor()
 
         while (this.#getPrecedence(this.#peek().type) >= minPrecedence) {
-            const operator = this.#advance()
-            const right = this.#parseExpression(
-                this.#getPrecedence(operator.type) + 1,
-            )
-            left = {
-                type: "binary",
-                operator: operator.type as BinaryOperator,
-                left,
-                right,
+            if (this.#peek().type === "assign") {
+                const current = this.#advance()
+                const right = this.#parseExpression(
+                    this.#getPrecedence(current.type),
+                )
+                left = {
+                    type: "assignment",
+                    left,
+                    right,
+                }
+            } else {
+                const operator = this.#advance()
+                const right = this.#parseExpression(
+                    this.#getPrecedence(operator.type) + 1,
+                )
+                left = {
+                    type: "binary",
+                    operator: operator.type as BinaryOperator,
+                    left,
+                    right,
+                }
             }
         }
 
@@ -142,6 +220,13 @@ export class Parser {
             const expr = this.#parseExpression(0)
             this.#expect("rparen")
             return expr
+        }
+
+        if (current.type === "identifier") {
+            return {
+                type: "variable",
+                name: current.value!,
+            }
         }
 
         throw new Error("Malformed expression")

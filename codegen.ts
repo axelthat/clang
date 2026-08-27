@@ -457,13 +457,16 @@ export class Codegen {
     #genReturnInstruction = (
         instruction: Extract<TackyInstruction, { type: "return" }>,
         offsets: Map<string, number>,
+        returnLabel: string,
     ) => {
         this.#copyValueToRegister(instruction.value, "%eax", offsets)
+        this.#writer.write(`jmp ${returnLabel}`)
     }
 
     #genInstruction = (
         instruction: TackyInstruction,
         offsets: Map<string, number>,
+        returnLabel: string,
     ) => {
         switch (instruction.type) {
             case "unary":
@@ -495,7 +498,7 @@ export class Codegen {
                 break
 
             case "return":
-                this.#genReturnInstruction(instruction, offsets)
+                this.#genReturnInstruction(instruction, offsets, returnLabel)
                 break
 
             default:
@@ -506,6 +509,7 @@ export class Codegen {
     #genFunction = (function_: TackyFunctionDefinition) => {
         const offsets = this.#createStackLayout(function_)
         const stackSize = this.#getStackSize(offsets)
+        const returnLabel = `.Lreturn_${function_.name}`
 
         this.#writer.write(`.globl ${function_.name}`)
         this.#writer.write(`${function_.name}:`)
@@ -521,8 +525,13 @@ export class Codegen {
         this.#writer.newline()
 
         for (const instruction of function_.instructions) {
-            this.#genInstruction(instruction, offsets)
+            this.#genInstruction(instruction, offsets, returnLabel)
         }
+
+        this.#writer.newline()
+        this.#writer.nest("--")
+        this.#writer.write(`${returnLabel}:`)
+        this.#writer.nest("++")
 
         this.#writer.write("movq %rbp, %rsp")
         this.#writer.write("popq %rbp")

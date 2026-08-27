@@ -1,7 +1,6 @@
-#include <stdio.h>
-
 int main(void)
 {
-    printf("%d", 190 % 8 + 4 * 3 - 50 / 5);
-    return 0;
+    int a = 1;
+    int b = 2;
+    return a = b = 4;
 }

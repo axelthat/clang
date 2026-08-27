@@ -7,6 +7,7 @@ import { Lexer } from "./lexer.ts"
 import { Parser } from "./parser.ts"
 import { Codegen } from "./codegen.ts"
 import { Tacky } from "./tacky.ts"
+import { Validator } from "./validator.ts"
 
 function test() {
     const args = process.argv.slice(2)
@@ -36,16 +37,25 @@ function test() {
                 break
             }
 
+            case "--validate": {
+                const parser = new Parser(new Lexer(source))
+                const validator = new Validator(parser.parse())
+                validator.validate()
+                break
+            }
+
             case "--tacky": {
                 const parser = new Parser(new Lexer(source))
-                const tacky = new Tacky(parser.parse())
+                const validator = new Validator(parser.parse())
+                const tacky = new Tacky(validator.validate())
                 tacky.tackle()
                 break
             }
 
             case "--codegen": {
                 const parser = new Parser(new Lexer(source))
-                const tacky = new Tacky(parser.parse())
+                const validator = new Validator(parser.parse())
+                const tacky = new Tacky(validator.validate())
                 const codegen = new Codegen(tacky.tackle())
                 codegen.gen()
                 break
@@ -53,7 +63,8 @@ function test() {
 
             default: {
                 const parser = new Parser(new Lexer(source))
-                const tacky = new Tacky(parser.parse())
+                const validator = new Validator(parser.parse())
+                const tacky = new Tacky(validator.validate())
                 const codegen = new Codegen(tacky.tackle())
                 const assembly = codegen.gen()
                 const parsed = path.parse(location)
@@ -65,23 +76,27 @@ function test() {
             }
         }
     }
-    //     const lexer = new Lexer(`
+    // const lexer = new Lexer(`
     // int main(void) {
-    //     return !14;
+    //     int a = 1;
+    //     int b = 2;
+    //     return a = b = 4;
     // }
-    //                 `)
-    //     // while (!lexer.isEOF()) {
-    //     //     console.log(lexer.next())
-    //     // }
-    //     const parser = new Parser(lexer)
-    //     // // parser.parse()
-    //     // console.log(JSON.stringify(parser.parse(), null, 4))
-    //     const tacky = new Tacky(parser.parse())
-    //     // console.log(JSON.stringify(tacky.tackle(), null, 4))
-    //     const codegen = new Codegen(tacky.tackle())
-    //     const data = codegen.gen()
-    //     writeFileSync("program.s", data, "utf8")
-    //     console.log(data)
+    //                         `)
+    // // while (!lexer.isEOF()) {
+    // //     console.log(lexer.next())
+    // // }
+    // const parser = new Parser(lexer)
+    // // // // parser.parse()
+    // // console.log(JSON.stringify(parser.parse(), null, 4))
+    // const validator = new Validator(parser.parse())
+    // // console.log(JSON.stringify(validator.validate(), null, 4))
+    // const tacky = new Tacky(validator.validate())
+    // // console.log(JSON.stringify(tacky.tackle(), null, 4))
+    // const codegen = new Codegen(tacky.tackle())
+    // const data = codegen.gen()
+    // writeFileSync("program.s", data, "utf8")
+    // console.log(data)
 }
 
 test()

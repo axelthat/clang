@@ -1,2 +1,2 @@
 let value = 5
-console.log(2 << 5)
+console.log((value = +5))

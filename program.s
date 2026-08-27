@@ -4,12 +4,17 @@ main:
     movq %rsp, %rbp
     subq $16, %rsp
 
-    movl $14, -4(%rbp)
-    cmpl $0, -4(%rbp)
-    sete %r11b
-    movzbl %r11b, %r11d
-    movl %r11d, -4(%rbp)
+    movl $1, -4(%rbp)
+    movl $2, -8(%rbp)
+    movl $4, -8(%rbp)
+    movl -8(%rbp), %r10d
+    movl %r10d, -4(%rbp)
     movl -4(%rbp), %eax
+    jmp .Lreturn_main
+    movl $0, %eax
+    jmp .Lreturn_main
+
+.Lreturn_main:
     movq %rbp, %rsp
     popq %rbp
     ret

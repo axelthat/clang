@@ -1,5 +1,7 @@
 import type {
     BinaryOperator,
+    BlockItem,
+    Declaration,
     Expression,
     FunctionDefinition,
     Program,
@@ -106,20 +108,79 @@ export class Tacky {
     #tackleFunction = (
         function_: FunctionDefinition,
     ): TackyFunctionDefinition => {
+        const instructions = function_.body.map(this.#tackleBlockItem).flat()
+
+        // Falling off the end of main returns 0.
+        instructions.push({
+            type: "return",
+            value: {
+                type: "constant",
+                value: 0,
+            },
+        })
+
         return {
             type: "function",
             name: function_.name,
-            instructions: this.#tackleStatement(function_.body),
+            instructions,
         }
+    }
+
+    #tackleBlockItem = (blockItem: BlockItem): TackyInstruction[] => {
+        if (blockItem.type === "declaration") {
+            return this.#tackleDeclaration(blockItem.declaration)
+        }
+
+        return this.#tackleStatement(blockItem.statement)
+    }
+
+    #tackleDeclaration = (declaration: Declaration): TackyInstruction[] => {
+        const instructions: TackyInstruction[] = []
+
+        if (declaration.init !== null) {
+            const source = this.#tackleExpression(
+                declaration.init,
+                instructions,
+            )
+
+            instructions.push({
+                type: "copy",
+                source,
+                destination: {
+                    type: "variable",
+                    name: declaration.name,
+                },
+            })
+        }
+
+        return instructions
     }
 
     #tackleStatement = (statement: Statement): TackyInstruction[] => {
         const instructions: TackyInstruction[] = []
-        instructions.push({
-            type: "return",
-            value: this.#tackleExpression(statement.expression, instructions),
-        })
-        return instructions
+
+        if (statement.type === "return") {
+            instructions.push({
+                type: "return",
+                value: this.#tackleExpression(
+                    statement.expression,
+                    instructions,
+                ),
+            })
+
+            return instructions
+        }
+
+        if (statement.type === "expression") {
+            this.#tackleExpression(statement.expression, instructions)
+            return instructions
+        }
+
+        if (statement.type === "null") {
+            return instructions
+        }
+
+        throw new Error("Malformed statement")
     }
 
     #tackleExpression = (
@@ -131,6 +192,37 @@ export class Tacky {
                 type: "constant",
                 value: expression.value,
             }
+        }
+
+        if (expression.type === "variable") {
+            return {
+                type: "variable",
+                name: expression.name,
+            }
+        }
+
+        if (expression.type === "assignment") {
+            if (expression.left.type !== "variable") {
+                throw new Error("Invalid assignment target")
+            }
+
+            const source = this.#tackleExpression(
+                expression.right,
+                instructions,
+            )
+
+            const destination: TackyVariable = {
+                type: "variable",
+                name: expression.left.name,
+            }
+
+            instructions.push({
+                type: "copy",
+                source,
+                destination,
+            })
+
+            return destination
         }
 
         if (expression.type === "unary") {
@@ -275,6 +367,7 @@ export class Tacky {
                     expression.left,
                     instructions,
                 )
+
                 const right = this.#tackleExpression(
                     expression.right,
                     instructions,
@@ -298,6 +391,7 @@ export class Tacky {
     tackle = (): TackyProgram => {
         this.#tmpVarCounter = 0
         this.#tmpLabelCounter = 0
+
         return this.#tackleProgram(this.#program)
     }
 }

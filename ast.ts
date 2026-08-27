@@ -6,13 +6,37 @@ export type Program = {
 export type FunctionDefinition = {
     type: "function"
     name: string
-    body: Statement
+    body: BlockItem[]
 }
 
-export type Statement = {
-    type: "return"
-    expression: Expression
+export type BlockItem =
+    | {
+          type: "declaration"
+          declaration: Declaration
+      }
+    | {
+          type: "statement"
+          statement: Statement
+      }
+
+export type Declaration = {
+    type: "declaration"
+    name: string
+    init: Expression | null
 }
+
+export type Statement =
+    | {
+          type: "return"
+          expression: Expression
+      }
+    | {
+          type: "expression"
+          expression: Expression
+      }
+    | {
+          type: "null"
+      }
 
 export type Expression =
     | {
@@ -27,6 +51,15 @@ export type Expression =
     | {
           type: "binary"
           operator: BinaryOperator
+          left: Expression
+          right: Expression
+      }
+    | {
+          type: "variable"
+          name: string
+      }
+    | {
+          type: "assignment"
           left: Expression
           right: Expression
       }
@@ -63,3 +96,20 @@ export type BinaryOperator =
     // Logical
     | "and"
     | "or"
+
+export type BinaryCompoundOperator =
+    // Arithmetic
+    | "add_equal"
+    | "subtract_equal"
+    | "multiply_equal"
+    | "divide_equal"
+    | "remainder_equal"
+
+    // Shift
+    | "lshift_equal"
+    | "rshift_equal"
+
+    // Bitwise
+    | "band_equal"
+    | "xor_equal"
+    | "bor_equal"
