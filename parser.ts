@@ -4,6 +4,7 @@ import type {
     BlockItem,
     Declaration,
     Expression,
+    ForInit,
     FunctionDefinition,
     Program,
     Statement,
@@ -46,6 +47,7 @@ const BINARY_PRECEDENCE = {
 export class Parser {
     #lexer: Lexer
     #current: Token
+    #loopLabelCounter = 0
 
     constructor(lexer: Lexer) {
         this.#lexer = lexer
@@ -62,6 +64,11 @@ export class Parser {
         type in BINARY_PRECEDENCE
             ? BINARY_PRECEDENCE[type as keyof typeof BINARY_PRECEDENCE]
             : -1
+    #getLoopLabel = () => {
+        const label = `loop.${this.#loopLabelCounter}`
+        this.#loopLabelCounter++
+        return label
+    }
 
     #parseProgram = (): Program => {
         return {
@@ -80,7 +87,7 @@ export class Parser {
         this.#expect("rparen")
         this.#expect("lbrace")
 
-        const body = this.#parseBlock()
+        const body = this.#parseBlock(null)
 
         this.#expect("rbrace")
 
@@ -91,14 +98,14 @@ export class Parser {
         }
     }
 
-    #parseBlock = (): Block => {
+    #parseBlock = (label: string | null): Block => {
         const items: BlockItem[] = []
 
         while (this.#peek().type !== "rbrace") {
             if (this.#peek().type === "eof") {
                 throw new Error("Expected '}', before eof")
             }
-            items.push(this.#parseBlockItem())
+            items.push(this.#parseBlockItem(label))
         }
 
         return {
@@ -107,7 +114,7 @@ export class Parser {
         }
     }
 
-    #parseBlockItem = (): BlockItem => {
+    #parseBlockItem = (label: string | null): BlockItem => {
         const token = this.#peek()
         if (token.type === "keyword" && token.value === "int") {
             return {
@@ -118,7 +125,7 @@ export class Parser {
 
         return {
             type: "statement",
-            statement: this.#parseStatement(),
+            statement: this.#parseStatement(label),
         }
     }
 
@@ -143,18 +150,173 @@ export class Parser {
         }
     }
 
-    #parseStatement(): Statement {
+    #parseStatement(label: string | null): Statement {
         const token = this.#peek()
 
-        if (token.type === "keyword" && token.value === "return") {
-            this.#advance()
+        if (token.type === "keyword") {
+            if (token.value === "return") {
+                this.#advance()
 
-            const expression = this.#parseExpression(0)
-            this.#expect("semi")
+                const expression = this.#parseExpression(0)
+                this.#expect("semi")
 
-            return {
-                type: "return",
-                expression,
+                return {
+                    type: "return",
+                    expression,
+                }
+            }
+
+            if (token.value === "if") {
+                this.#advance()
+
+                this.#expect("lparen")
+                const condition = this.#parseExpression(0)
+                this.#expect("rparen")
+
+                const then = this.#parseStatement(label)
+                let else_: Statement | null = null
+
+                if (
+                    this.#peek().type === "keyword" &&
+                    this.#peek().value === "else"
+                ) {
+                    this.#advance()
+
+                    else_ = this.#parseStatement(label)
+                }
+
+                return {
+                    type: "if",
+                    condition,
+                    then,
+                    else: else_,
+                }
+            }
+
+            if (token.value === "while") {
+                this.#advance()
+
+                this.#expect("lparen")
+                const condition = this.#parseExpression(0)
+                this.#expect("rparen")
+
+                const label = this.#getLoopLabel()
+                const body = this.#parseStatement(label)
+
+                return {
+                    type: "while",
+                    label,
+                    condition,
+                    body,
+                }
+            }
+
+            if (token.value === "do") {
+                this.#advance()
+
+                const label = this.#getLoopLabel()
+                const body = this.#parseStatement(label)
+
+                this.#expect("keyword", "while")
+                this.#expect("lparen")
+                const condition = this.#parseExpression(0)
+                this.#expect("rparen")
+                this.#expect("semi")
+
+                return {
+                    type: "doWhile",
+                    label,
+                    body,
+                    condition,
+                }
+            }
+
+            if (token.value === "for") {
+                this.#advance()
+                this.#expect("lparen")
+
+                const init: ForInit = (() => {
+                    if (
+                        this.#peek().type === "keyword" &&
+                        this.#peek().value === "int"
+                    ) {
+                        return {
+                            type: "declaration",
+                            declaration: this.#parseDeclaration(),
+                        }
+                    }
+
+                    if (this.#peek().type === "semi") {
+                        this.#advance()
+
+                        return {
+                            type: "expression",
+                            expression: null,
+                        }
+                    }
+
+                    const expression = this.#parseExpression(0)
+                    this.#expect("semi")
+
+                    return {
+                        type: "expression",
+                        expression,
+                    }
+                })()
+
+                const condition: Expression | null = (() => {
+                    if (this.#peek().type === "semi") {
+                        this.#advance()
+                        return null
+                    }
+
+                    const expression = this.#parseExpression(0)
+                    this.#expect("semi")
+                    return expression
+                })()
+
+                const post: Expression | null = (() => {
+                    if (this.#peek().type === "rparen") {
+                        this.#advance()
+                        return null
+                    }
+
+                    const expression = this.#parseExpression(0)
+                    this.#expect("rparen")
+                    return expression
+                })()
+
+                const label = this.#getLoopLabel()
+                const body = this.#parseStatement(label)
+
+                return {
+                    type: "for",
+                    label,
+                    init,
+                    condition,
+                    post,
+                    body,
+                }
+            }
+
+            if (token.value === "break") {
+                this.#advance()
+                this.#expect("semi")
+
+                return {
+                    type: "break",
+                    label,
+                }
+            }
+
+            if (token.value === "continue") {
+                this.#advance()
+                this.#expect("semi")
+
+                return {
+                    type: "continue",
+                    label,
+                }
             }
         }
 
@@ -166,36 +328,9 @@ export class Parser {
             }
         }
 
-        if (token.type === "keyword" && token.value === "if") {
-            this.#advance()
-
-            this.#expect("lparen")
-            const condition = this.#parseExpression(0)
-            this.#expect("rparen")
-
-            const then = this.#parseStatement()
-            let else_: Statement | null = null
-
-            if (
-                this.#peek().type === "keyword" &&
-                this.#peek().value === "else"
-            ) {
-                this.#advance()
-
-                else_ = this.#parseStatement()
-            }
-
-            return {
-                type: "if",
-                condition,
-                then,
-                else: else_,
-            }
-        }
-
         if (token.type === "lbrace") {
             this.#advance()
-            const block = this.#parseBlock()
+            const block = this.#parseBlock(label)
             this.#expect("rbrace")
 
             return {

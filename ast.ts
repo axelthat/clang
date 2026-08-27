@@ -50,7 +50,45 @@ export type Statement =
           block: Block
       }
     | {
+          type: "while"
+          label: string
+          condition: Expression
+          body: Statement
+      }
+    | {
+          type: "doWhile"
+          label: string
+          body: Statement
+          condition: Expression
+      }
+    | {
+          type: "for"
+          label: string
+          init: ForInit
+          condition: Expression | null
+          post: Expression | null
+          body: Statement
+      }
+    | {
+          type: "break"
+          label: string | null
+      }
+    | {
+          type: "continue"
+          label: string | null
+      }
+    | {
           type: "null"
+      }
+
+export type ForInit =
+    | {
+          type: "declaration"
+          declaration: Declaration
+      }
+    | {
+          type: "expression"
+          expression: Expression | null
       }
 
 export type Expression =

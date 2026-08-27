@@ -61,22 +61,10 @@ export class Validator {
         variableMap: VariableMap,
     ): BlockItem => {
         if (blockItem.type === "declaration") {
-            return {
-                type: "declaration",
-                declaration: this.#validateDeclaration(
-                    blockItem.declaration,
-                    variableMap,
-                ),
-            }
+            return this.#validateDeclaration(blockItem, variableMap)
         }
 
-        return {
-            type: "statement",
-            statement: this.#validateStatement(
-                blockItem.statement,
-                variableMap,
-            ),
-        }
+        return this.#validateStatement(blockItem, variableMap)
     }
 
     #validateDeclaration = (

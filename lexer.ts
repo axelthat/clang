@@ -1,6 +1,16 @@
 import { Token, type TokenType } from "./token.ts"
 
-export type Keyword = "int" | "void" | "return" | "if" | "else"
+export type Keyword =
+    | "int"
+    | "void"
+    | "return"
+    | "if"
+    | "else"
+    | "do"
+    | "while"
+    | "for"
+    | "break"
+    | "continue"
 
 export class Lexer {
     #start: number
@@ -13,6 +23,11 @@ export class Lexer {
         ["return", true],
         ["if", true],
         ["else", true],
+        ["do", true],
+        ["while", true],
+        ["for", true],
+        ["break", true],
+        ["continue", true],
     ])
 
     constructor(source: string) {
@@ -55,11 +70,10 @@ export class Lexer {
             if (this.#peek() == "/" && this.#peekNext() == "*") {
                 this.#advance()
                 this.#advance()
-                while (
-                    !this.isEOF() &&
-                    this.#peek() !== "*" &&
-                    this.#peekNext() !== "/"
-                ) {
+                while (!this.isEOF()) {
+                    if (this.#peek() === "*" && this.#peekNext() === "/") {
+                        break
+                    }
                     this.#advance()
                 }
                 this.#advance()

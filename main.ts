@@ -38,34 +38,43 @@ function test() {
             }
 
             case "--validate": {
-                const parser = new Parser(new Lexer(source))
-                const validator = new Validator(parser.parse())
+                const validator = new Validator(
+                    new Parser(new Lexer(source)).parse(),
+                )
                 validator.validate()
                 break
             }
 
             case "--tacky": {
-                const parser = new Parser(new Lexer(source))
-                const validator = new Validator(parser.parse())
-                const tacky = new Tacky(validator.validate())
+                const tacky = new Tacky(
+                    new Validator(
+                        new Parser(new Lexer(source)).parse(),
+                    ).validate(),
+                )
                 tacky.tackle()
                 break
             }
 
             case "--codegen": {
-                const parser = new Parser(new Lexer(source))
-                const validator = new Validator(parser.parse())
-                const tacky = new Tacky(validator.validate())
-                const codegen = new Codegen(tacky.tackle())
+                const codegen = new Codegen(
+                    new Tacky(
+                        new Validator(
+                            new Parser(new Lexer(source)).parse(),
+                        ).validate(),
+                    ).tackle(),
+                )
                 codegen.gen()
                 break
             }
 
             default: {
-                const parser = new Parser(new Lexer(source))
-                const validator = new Validator(parser.parse())
-                const tacky = new Tacky(validator.validate())
-                const codegen = new Codegen(tacky.tackle())
+                const codegen = new Codegen(
+                    new Tacky(
+                        new Validator(
+                            new Parser(new Lexer(source)).parse(),
+                        ).validate(),
+                    ).tackle(),
+                )
                 const assembly = codegen.gen()
                 const parsed = path.parse(location)
                 const assemblyPath = path.join(parsed.dir, `${parsed.name}.s`)
@@ -78,32 +87,25 @@ function test() {
     }
     //     const lexer = new Lexer(`
     // int main(void) {
-    //     int x = 1;
-    //     {
-    //         int x = 2;
-    //         if (x > 1) {
-    //             x = 3;
-    //             int x = 4;
-    //         }
-    //         return x;
-    //     }
-    //     return x;
+    //     do {
+    //         int a = a + 1;
+    //     } while (a < 100);
     // }
-    //                             `)
+    //                                 `)
     //     // while (!lexer.isEOF()) {
     //     //     console.log(lexer.next())
     //     // }
     //     const parser = new Parser(lexer)
-    //     // // // // parser.parse()
-    //     // console.log(JSON.stringify(parser.parse(), null, 4))
-    //     const validator = new Validator(parser.parse())
-    //     // console.log(JSON.stringify(validator.validate(), null, 4))
-    //     const tacky = new Tacky(validator.validate())
-    //     // console.log(JSON.stringify(tacky.tackle(), null, 4))
-    //     const codegen = new Codegen(tacky.tackle())
-    //     const data = codegen.gen()
-    //     writeFileSync("program.s", data, "utf8")
-    //     console.log(data)
+    //     // // // // // parser.parse()
+    //     console.log(JSON.stringify(parser.parse(), null, 4))
+    // const validator = new Validator(parser.parse())
+    // // console.log(JSON.stringify(validator.validate(), null, 4))
+    // const tacky = new Tacky(validator.validate())
+    // // console.log(JSON.stringify(tacky.tackle(), null, 4))
+    // const codegen = new Codegen(tacky.tackle())
+    // const data = codegen.gen()
+    // writeFileSync("program.s", data, "utf8")
+    // console.log(data)
 }
 
 test()
