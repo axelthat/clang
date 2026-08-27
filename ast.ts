@@ -6,7 +6,12 @@ export type Program = {
 export type FunctionDefinition = {
     type: "function"
     name: string
-    body: BlockItem[]
+    body: Block
+}
+
+export type Block = {
+    type: "block"
+    items: BlockItem[]
 }
 
 export type BlockItem =
@@ -35,13 +40,17 @@ export type Statement =
           expression: Expression
       }
     | {
-          type: "null"
-      }
-    | {
           type: "if"
           condition: Expression
           then: Statement
           else: Statement | null
+      }
+    | {
+          type: "compound"
+          block: Block
+      }
+    | {
+          type: "null"
       }
 
 export type Expression =

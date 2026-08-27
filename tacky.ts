@@ -1,5 +1,6 @@
 import type {
     BinaryOperator,
+    Block,
     BlockItem,
     Declaration,
     Expression,
@@ -108,7 +109,7 @@ export class Tacky {
     #tackleFunction = (
         function_: FunctionDefinition,
     ): TackyFunctionDefinition => {
-        const instructions = function_.body.map(this.#tackleBlockItem).flat()
+        const instructions = this.#tackleBlock(function_.body)
 
         // Falling off the end of main returns 0.
         instructions.push({
@@ -124,6 +125,14 @@ export class Tacky {
             name: function_.name,
             instructions,
         }
+    }
+
+    #tackleBlock = (block: Block): TackyInstruction[] => {
+        const instructions: TackyInstruction[] = []
+        for (const blockItem of block.items) {
+            instructions.push(...this.#tackleBlockItem(blockItem))
+        }
+        return instructions
     }
 
     #tackleBlockItem = (blockItem: BlockItem): TackyInstruction[] => {
@@ -227,6 +236,10 @@ export class Tacky {
             )
 
             return instructions
+        }
+
+        if (statement.type === "compound") {
+            return this.#tackleBlock(statement.block)
         }
 
         if (statement.type === "null") {

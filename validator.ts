@@ -1,4 +1,5 @@
 import type {
+    Block,
     BlockItem,
     Declaration,
     Expression,
@@ -7,9 +8,10 @@ import type {
     Statement,
 } from "./ast.ts"
 
+type VariableMap = Map<string, { newName: string; fromCurrentBlock: boolean }>
+
 export class Validator {
     #program: Program
-    #variableMap = new Map<string, string>()
     #temporaryCounter = 0
 
     constructor(program: Program) {
@@ -22,47 +24,80 @@ export class Validator {
         return uniqueName
     }
 
-    #validateProgram = (program: Program): Program => {
+    #validateProgram = (
+        program: Program,
+        variableMap: VariableMap,
+    ): Program => {
         return {
             type: "program",
-            function: this.#validateFunction(program.function),
+            function: this.#validateFunction(program.function, variableMap),
         }
     }
 
-    #validateFunction = (function_: FunctionDefinition): FunctionDefinition => {
+    #validateFunction = (
+        function_: FunctionDefinition,
+        variableMap: VariableMap,
+    ): FunctionDefinition => {
         return {
             type: "function",
             name: function_.name,
-            body: function_.body.map((blockItem) =>
-                this.#validateBlockItem(blockItem),
-            ),
+            body: this.#validateBlock(function_.body, variableMap),
         }
     }
 
-    #validateBlockItem = (blockItem: BlockItem): BlockItem => {
+    #validateBlock = (block: Block, variableMap: VariableMap): Block => {
+        const items: BlockItem[] = []
+        for (const blockItem of block.items) {
+            items.push(this.#validateBlockItem(blockItem, variableMap))
+        }
+        return {
+            type: "block",
+            items,
+        }
+    }
+
+    #validateBlockItem = (
+        blockItem: BlockItem,
+        variableMap: VariableMap,
+    ): BlockItem => {
         if (blockItem.type === "declaration") {
             return {
                 type: "declaration",
-                declaration: this.#validateDeclaration(blockItem.declaration),
+                declaration: this.#validateDeclaration(
+                    blockItem.declaration,
+                    variableMap,
+                ),
             }
         }
 
         return {
             type: "statement",
-            statement: this.#validateStatement(blockItem.statement),
+            statement: this.#validateStatement(
+                blockItem.statement,
+                variableMap,
+            ),
         }
     }
 
-    #validateDeclaration = (declaration: Declaration): Declaration => {
-        if (this.#variableMap.has(declaration.name)) {
+    #validateDeclaration = (
+        declaration: Declaration,
+        variableMap: VariableMap,
+    ): Declaration => {
+        if (
+            variableMap.has(declaration.name) &&
+            variableMap.get(declaration.name)?.fromCurrentBlock
+        ) {
             throw new Error("Duplicate variable declaration")
         }
         const uniqueName = this.#makeTemporary(declaration.name)
-        this.#variableMap.set(declaration.name, uniqueName)
+        variableMap.set(declaration.name, {
+            newName: uniqueName,
+            fromCurrentBlock: true,
+        })
 
         let init: Expression | null = null
         if (declaration.init != null) {
-            init = this.#validateExpression(declaration.init)
+            init = this.#validateExpression(declaration.init, variableMap)
         }
         return {
             type: "declaration",
@@ -71,29 +106,57 @@ export class Validator {
         }
     }
 
-    #validateStatement = (statement: Statement): Statement => {
+    #validateStatement = (
+        statement: Statement,
+        variableMap: VariableMap,
+    ): Statement => {
         if (statement.type === "return") {
             return {
                 type: "return",
-                expression: this.#validateExpression(statement.expression),
+                expression: this.#validateExpression(
+                    statement.expression,
+                    variableMap,
+                ),
             }
         }
 
         if (statement.type === "expression") {
             return {
                 type: "expression",
-                expression: this.#validateExpression(statement.expression),
+                expression: this.#validateExpression(
+                    statement.expression,
+                    variableMap,
+                ),
             }
         }
 
         if (statement.type === "if") {
             return {
                 type: "if",
-                condition: this.#validateExpression(statement.condition),
-                then: this.#validateStatement(statement.then),
+                condition: this.#validateExpression(
+                    statement.condition,
+                    variableMap,
+                ),
+                then: this.#validateStatement(statement.then, variableMap),
                 else: statement.else
-                    ? this.#validateStatement(statement.else)
+                    ? this.#validateStatement(statement.else, variableMap)
                     : null,
+            }
+        }
+
+        if (statement.type === "compound") {
+            const newVariableMap: VariableMap = new Map(
+                Array.from(variableMap).map(([key, value]) => [
+                    key,
+                    {
+                        ...value,
+                        fromCurrentBlock: false,
+                    },
+                ]),
+            )
+            return {
+                type: "compound",
+                block: this.#validateBlock(statement.block, newVariableMap),
             }
         }
 
@@ -102,23 +165,26 @@ export class Validator {
         }
     }
 
-    #validateExpression = (expression: Expression): Expression => {
+    #validateExpression = (
+        expression: Expression,
+        variableMap: VariableMap,
+    ): Expression => {
         if (expression.type === "assignment") {
             if (expression.left.type !== "variable") {
                 throw new Error("Invalid lvalue!")
             }
             return {
                 type: "assignment",
-                left: this.#validateExpression(expression.left),
-                right: this.#validateExpression(expression.right),
+                left: this.#validateExpression(expression.left, variableMap),
+                right: this.#validateExpression(expression.right, variableMap),
             }
         }
 
         if (expression.type === "variable") {
-            if (this.#variableMap.has(expression.name)) {
+            if (variableMap.has(expression.name)) {
                 return {
                     type: "variable",
-                    name: this.#variableMap.get(expression.name)!,
+                    name: variableMap.get(expression.name)!.newName,
                 }
             }
             throw new Error("Undeclared variable!")
@@ -128,8 +194,8 @@ export class Validator {
             return {
                 type: "binary",
                 operator: expression.operator,
-                left: this.#validateExpression(expression.left),
-                right: this.#validateExpression(expression.right),
+                left: this.#validateExpression(expression.left, variableMap),
+                right: this.#validateExpression(expression.right, variableMap),
             }
         }
 
@@ -137,16 +203,22 @@ export class Validator {
             return {
                 type: "unary",
                 operator: expression.operator,
-                expression: this.#validateExpression(expression.expression),
+                expression: this.#validateExpression(
+                    expression.expression,
+                    variableMap,
+                ),
             }
         }
 
         if (expression.type === "conditional") {
             return {
                 type: "conditional",
-                condition: this.#validateExpression(expression.condition),
-                then: this.#validateExpression(expression.then),
-                else: this.#validateExpression(expression.else),
+                condition: this.#validateExpression(
+                    expression.condition,
+                    variableMap,
+                ),
+                then: this.#validateExpression(expression.then, variableMap),
+                else: this.#validateExpression(expression.else, variableMap),
             }
         }
 
@@ -154,6 +226,6 @@ export class Validator {
     }
 
     validate = (): Program => {
-        return this.#validateProgram(this.#program)
+        return this.#validateProgram(this.#program, new Map())
     }
 }

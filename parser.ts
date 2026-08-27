@@ -1,5 +1,6 @@
 import type {
     BinaryOperator,
+    Block,
     BlockItem,
     Declaration,
     Expression,
@@ -79,14 +80,7 @@ export class Parser {
         this.#expect("rparen")
         this.#expect("lbrace")
 
-        const body: BlockItem[] = []
-
-        while (this.#peek().type !== "rbrace") {
-            if (this.#peek().type === "eof") {
-                throw new Error("Expected '}', before eof")
-            }
-            body.push(this.#parseBlockItem())
-        }
+        const body = this.#parseBlock()
 
         this.#expect("rbrace")
 
@@ -94,6 +88,22 @@ export class Parser {
             type: "function",
             name: name.value!,
             body,
+        }
+    }
+
+    #parseBlock = (): Block => {
+        const items: BlockItem[] = []
+
+        while (this.#peek().type !== "rbrace") {
+            if (this.#peek().type === "eof") {
+                throw new Error("Expected '}', before eof")
+            }
+            items.push(this.#parseBlockItem())
+        }
+
+        return {
+            type: "block",
+            items,
         }
     }
 
@@ -180,6 +190,17 @@ export class Parser {
                 condition,
                 then,
                 else: else_,
+            }
+        }
+
+        if (token.type === "lbrace") {
+            this.#advance()
+            const block = this.#parseBlock()
+            this.#expect("rbrace")
+
+            return {
+                type: "compound",
+                block,
             }
         }
 
