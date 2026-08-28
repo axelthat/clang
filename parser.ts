@@ -47,7 +47,6 @@ const BINARY_PRECEDENCE = {
 export class Parser {
     #lexer: Lexer
     #current: Token
-    #loopLabelCounter = 0
 
     constructor(lexer: Lexer) {
         this.#lexer = lexer
@@ -64,11 +63,6 @@ export class Parser {
         type in BINARY_PRECEDENCE
             ? BINARY_PRECEDENCE[type as keyof typeof BINARY_PRECEDENCE]
             : -1
-    #getLoopLabel = () => {
-        const label = `loop.${this.#loopLabelCounter}`
-        this.#loopLabelCounter++
-        return label
-    }
 
     #parseProgram = (): Program => {
         return {
@@ -87,7 +81,7 @@ export class Parser {
         this.#expect("rparen")
         this.#expect("lbrace")
 
-        const body = this.#parseBlock(null)
+        const body = this.#parseBlock()
 
         this.#expect("rbrace")
 
@@ -98,14 +92,14 @@ export class Parser {
         }
     }
 
-    #parseBlock = (label: string | null): Block => {
+    #parseBlock = (): Block => {
         const items: BlockItem[] = []
 
         while (this.#peek().type !== "rbrace") {
             if (this.#peek().type === "eof") {
                 throw new Error("Expected '}', before eof")
             }
-            items.push(this.#parseBlockItem(label))
+            items.push(this.#parseBlockItem())
         }
 
         return {
@@ -114,7 +108,7 @@ export class Parser {
         }
     }
 
-    #parseBlockItem = (label: string | null): BlockItem => {
+    #parseBlockItem = (): BlockItem => {
         const token = this.#peek()
         if (token.type === "keyword" && token.value === "int") {
             return {
@@ -125,7 +119,7 @@ export class Parser {
 
         return {
             type: "statement",
-            statement: this.#parseStatement(label),
+            statement: this.#parseStatement(),
         }
     }
 
@@ -150,7 +144,7 @@ export class Parser {
         }
     }
 
-    #parseStatement(label: string | null): Statement {
+    #parseStatement(): Statement {
         const token = this.#peek()
 
         if (token.type === "keyword") {
@@ -173,7 +167,7 @@ export class Parser {
                 const condition = this.#parseExpression(0)
                 this.#expect("rparen")
 
-                const then = this.#parseStatement(label)
+                const then = this.#parseStatement()
                 let else_: Statement | null = null
 
                 if (
@@ -182,7 +176,7 @@ export class Parser {
                 ) {
                     this.#advance()
 
-                    else_ = this.#parseStatement(label)
+                    else_ = this.#parseStatement()
                 }
 
                 return {
@@ -200,12 +194,11 @@ export class Parser {
                 const condition = this.#parseExpression(0)
                 this.#expect("rparen")
 
-                const label = this.#getLoopLabel()
-                const body = this.#parseStatement(label)
+                const body = this.#parseStatement()
 
                 return {
                     type: "while",
-                    label,
+                    label: null,
                     condition,
                     body,
                 }
@@ -214,8 +207,7 @@ export class Parser {
             if (token.value === "do") {
                 this.#advance()
 
-                const label = this.#getLoopLabel()
-                const body = this.#parseStatement(label)
+                const body = this.#parseStatement()
 
                 this.#expect("keyword", "while")
                 this.#expect("lparen")
@@ -225,7 +217,7 @@ export class Parser {
 
                 return {
                     type: "doWhile",
-                    label,
+                    label: null,
                     body,
                     condition,
                 }
@@ -286,12 +278,11 @@ export class Parser {
                     return expression
                 })()
 
-                const label = this.#getLoopLabel()
-                const body = this.#parseStatement(label)
+                const body = this.#parseStatement()
 
                 return {
                     type: "for",
-                    label,
+                    label: null,
                     init,
                     condition,
                     post,
@@ -305,7 +296,7 @@ export class Parser {
 
                 return {
                     type: "break",
-                    label,
+                    label: null,
                 }
             }
 
@@ -315,7 +306,7 @@ export class Parser {
 
                 return {
                     type: "continue",
-                    label,
+                    label: null,
                 }
             }
         }
@@ -330,7 +321,7 @@ export class Parser {
 
         if (token.type === "lbrace") {
             this.#advance()
-            const block = this.#parseBlock(label)
+            const block = this.#parseBlock()
             this.#expect("rbrace")
 
             return {

@@ -51,19 +51,19 @@ export type Statement =
       }
     | {
           type: "while"
-          label: string
+          label: string | null
           condition: Expression
           body: Statement
       }
     | {
           type: "doWhile"
-          label: string
+          label: string | null
           body: Statement
           condition: Expression
       }
     | {
           type: "for"
-          label: string
+          label: string | null
           init: ForInit
           condition: Expression | null
           post: Expression | null

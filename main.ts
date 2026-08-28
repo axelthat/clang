@@ -85,19 +85,22 @@ function test() {
             }
         }
     }
-    //     const lexer = new Lexer(`
+    // const lexer = new Lexer(`
     // int main(void) {
-    //     do {
-    //         int a = a + 1;
-    //     } while (a < 100);
+    //     int x;
+    //     for(x = 10; x > 0; x = x - 1) {
+    //         if(x <= 9)
+    //             break;
+    //     }
+    //     return x;
     // }
     //                                 `)
-    //     // while (!lexer.isEOF()) {
-    //     //     console.log(lexer.next())
-    //     // }
-    //     const parser = new Parser(lexer)
-    //     // // // // // parser.parse()
-    //     console.log(JSON.stringify(parser.parse(), null, 4))
+    // // while (!lexer.isEOF()) {
+    // //     console.log(lexer.next())
+    // // }
+    // const parser = new Parser(lexer)
+    // // // // // // parser.parse()
+    // // console.log(JSON.stringify(parser.parse(), null, 4))
     // const validator = new Validator(parser.parse())
     // // console.log(JSON.stringify(validator.validate(), null, 4))
     // const tacky = new Tacky(validator.validate())

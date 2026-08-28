@@ -242,6 +242,149 @@ export class Tacky {
             return this.#tackleBlock(statement.block)
         }
 
+        if (statement.type === "while") {
+            const continueLabel = `continue_${statement.label}`
+            const breakLabel = `break_${statement.label}`
+
+            instructions.push({
+                type: "label",
+                name: continueLabel,
+            })
+
+            const condition = this.#tackleExpression(
+                statement.condition,
+                instructions,
+            )
+
+            instructions.push(
+                {
+                    type: "jump_if_zero",
+                    condition,
+                    target: breakLabel,
+                },
+                ...this.#tackleStatement(statement.body),
+                {
+                    type: "jump",
+                    target: continueLabel,
+                },
+                {
+                    type: "label",
+                    name: breakLabel,
+                },
+            )
+            return instructions
+        }
+
+        if (statement.type === "doWhile") {
+            const startLabel = `start_${statement.label!}`
+            const continueLabel = `continue_${statement.label!}`
+            const breakLabel = `break_${statement.label!}`
+
+            instructions.push({
+                type: "label",
+                name: startLabel,
+            })
+
+            instructions.push(...this.#tackleStatement(statement.body))
+
+            instructions.push({
+                type: "label",
+                name: continueLabel,
+            })
+
+            const condition = this.#tackleExpression(
+                statement.condition,
+                instructions,
+            )
+
+            instructions.push(
+                {
+                    type: "jump_if_zero",
+                    condition,
+                    target: breakLabel,
+                },
+                {
+                    type: "jump",
+                    target: startLabel,
+                },
+                {
+                    type: "label",
+                    name: breakLabel,
+                },
+            )
+
+            return instructions
+        }
+
+        if (statement.type === "for") {
+            const startLabel = `start_${statement.label!}`
+            const continueLabel = `continue_${statement.label!}`
+            const breakLabel = `break_${statement.label!}`
+
+            if (statement.init !== null) {
+                if (statement.init.type === "declaration") {
+                    instructions.push(
+                        ...this.#tackleDeclaration(statement.init.declaration),
+                    )
+                } else if (statement.init.expression !== null) {
+                    this.#tackleExpression(
+                        statement.init.expression,
+                        instructions,
+                    )
+                }
+            }
+
+            instructions.push({
+                type: "label",
+                name: startLabel,
+            })
+
+            if (statement.condition !== null) {
+                const condition = this.#tackleExpression(
+                    statement.condition,
+                    instructions,
+                )
+
+                instructions.push({
+                    type: "jump_if_zero",
+                    condition,
+                    target: breakLabel,
+                })
+            }
+
+            instructions.push(...this.#tackleStatement(statement.body))
+
+            instructions.push({
+                type: "label",
+                name: continueLabel,
+            })
+
+            if (statement.post !== null) {
+                this.#tackleExpression(statement.post, instructions)
+            }
+
+            instructions.push(
+                {
+                    type: "jump",
+                    target: startLabel,
+                },
+                {
+                    type: "label",
+                    name: breakLabel,
+                },
+            )
+
+            return instructions
+        }
+
+        if (statement.type === "break" || statement.type === "continue") {
+            instructions.push({
+                type: "jump",
+                target: `${statement.type}_${statement.label}`,
+            })
+            return instructions
+        }
+
         if (statement.type === "null") {
             return instructions
         }
