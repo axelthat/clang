@@ -1,12 +1,6 @@
 export type Program = {
     type: "program"
-    function: FunctionDefinition
-}
-
-export type FunctionDefinition = {
-    type: "function"
-    name: string
-    body: Block
+    declarations: Declaration[]
 }
 
 export type Block = {
@@ -24,8 +18,19 @@ export type BlockItem =
           statement: Statement
       }
 
-export type Declaration = {
-    type: "declaration"
+export type Declaration = FunctionDeclaration | VariableDeclaration
+
+export type Parameter = string
+
+export type FunctionDeclaration = {
+    type: "functionDeclaration"
+    name: string
+    parameters: Parameter[]
+    body: Block | null
+}
+
+export type VariableDeclaration = {
+    type: "variableDeclaration"
     name: string
     init: Expression | null
 }
@@ -84,7 +89,7 @@ export type Statement =
 export type ForInit =
     | {
           type: "declaration"
-          declaration: Declaration
+          declaration: VariableDeclaration
       }
     | {
           type: "expression"
@@ -121,6 +126,11 @@ export type Expression =
           condition: Expression
           then: Expression
           else: Expression
+      }
+    | {
+          type: "functionCall"
+          name: string
+          args: Expression[]
       }
 
 export type UnaryOperator = "complement" | "subtract" | "not"

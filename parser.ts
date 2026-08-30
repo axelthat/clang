@@ -5,10 +5,11 @@ import type {
     Declaration,
     Expression,
     ForInit,
-    FunctionDefinition,
+    Parameter,
     Program,
     Statement,
     UnaryOperator,
+    VariableDeclaration,
 } from "./ast.ts"
 import type { Keyword, Lexer } from "./lexer.ts"
 import type { Token, TokenType } from "./token.ts"
@@ -65,30 +66,92 @@ export class Parser {
             : -1
 
     #parseProgram = (): Program => {
+        const declarations: Declaration[] = []
+        while (this.#peek().type !== "eof") {
+            declarations.push(this.#parseDeclaration())
+        }
+
         return {
             type: "program",
-            function: this.#parseFunction(),
+            declarations,
         }
     }
 
-    #parseFunction = (): FunctionDefinition => {
+    #parseDeclaration = (): Declaration => {
         this.#expect("keyword", "int")
-
         const name = this.#expect("identifier")
 
-        this.#expect("lparen")
-        this.#expect("keyword", "void")
-        this.#expect("rparen")
-        this.#expect("lbrace")
+        if (this.#peek().type === "lparen") {
+            this.#advance()
 
-        const body = this.#parseBlock()
+            const parameters: Parameter[] = []
 
-        this.#expect("rbrace")
+            if (
+                this.#peek().type === "keyword" &&
+                this.#peek().value === "void"
+            ) {
+                this.#advance()
+            } else {
+                while (true) {
+                    this.#expect("keyword", "int")
+
+                    const identifier = this.#expect("identifier")
+                    parameters.push(identifier.value!)
+
+                    if (this.#peek().type !== "comma") {
+                        break
+                    }
+
+                    this.#expect("comma")
+
+                    if (this.#peek().type === "rparen") {
+                        throw new Error("Expected parameter after ','")
+                    }
+                }
+            }
+
+            this.#expect("rparen")
+
+            if (this.#peek().type === "semi") {
+                this.#advance()
+
+                return {
+                    type: "functionDeclaration",
+                    name: name.value!,
+                    parameters,
+                    body: null,
+                }
+            }
+
+            this.#expect("lbrace")
+            const body = this.#parseBlock()
+            this.#expect("rbrace")
+
+            return {
+                type: "functionDeclaration",
+                name: name.value!,
+                parameters,
+                body,
+            }
+        }
+
+        return this.#parseVariableDeclaration(name.value!)
+    }
+
+    #parseVariableDeclaration = (name: string): VariableDeclaration => {
+        let init: Expression | null = null
+
+        if (this.#peek().type === "assign") {
+            this.#advance()
+            init = this.#parseExpression(0)
+        }
+
+        this.#expect("semi")
 
         return {
-            type: "function",
-            name: name.value!,
-            body,
+            type: "variableDeclaration",
+            name,
+            init,
         }
     }
 
@@ -120,27 +183,6 @@ export class Parser {
         return {
             type: "statement",
             statement: this.#parseStatement(),
-        }
-    }
-
-    #parseDeclaration = (): Declaration => {
-        this.#expect("keyword", "int")
-
-        const name = this.#expect("identifier")
-
-        let init: Expression | null = null
-
-        if (this.#peek().value === "=") {
-            this.#advance()
-            init = this.#parseExpression(0)
-        }
-
-        this.#expect("semi")
-
-        return {
-            type: "declaration",
-            name: name.value!,
-            init,
         }
     }
 
@@ -232,9 +274,14 @@ export class Parser {
                         this.#peek().type === "keyword" &&
                         this.#peek().value === "int"
                     ) {
+                        this.#advance()
+                        const name = this.#expect("identifier")
+
                         return {
                             type: "declaration",
-                            declaration: this.#parseDeclaration(),
+                            declaration: this.#parseVariableDeclaration(
+                                name.value!,
+                            ),
                         }
                     }
 
@@ -416,6 +463,31 @@ export class Parser {
         }
 
         if (current.type === "identifier") {
+            if (this.#peek().type === "lparen") {
+                this.#advance()
+
+                const args: Expression[] = []
+
+                if (this.#peek().type !== "rparen") {
+                    args.push(this.#parseExpression(0))
+
+                    while (this.#peek().type === "comma") {
+                        this.#advance()
+                        if (this.#peek().type === "rparen") {
+                            throw new Error("Expected expression after ','")
+                        }
+                        args.push(this.#parseExpression(0))
+                    }
+                }
+
+                this.#expect("rparen")
+
+                return {
+                    type: "functionCall",
+                    name: current.value!,
+                    args,
+                }
+            }
             return {
                 type: "variable",
                 name: current.value!,

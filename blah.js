@@ -10,4 +10,5 @@ function main(label) {
     }
 }
 
-main("")
+for (let i = 0; i < 3; i++)
+const x = 1

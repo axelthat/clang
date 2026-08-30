@@ -4,12 +4,23 @@ import type {
     Declaration,
     Expression,
     ForInit,
-    FunctionDefinition,
+    FunctionDeclaration,
+    Parameter,
     Program,
     Statement,
+    VariableDeclaration,
 } from "./ast.ts"
+import { TypeChecker, type SymbolMap } from "./typeChecker.ts"
 
-type VariableMap = Map<string, { newName: string; fromCurrentBlock: boolean }>
+type IdentifierMap = Map<
+    string,
+    { newName: string; fromCurrentScope: boolean; hasLinkage: boolean }
+>
+
+export type ValidateReturnType = {
+    symbols: SymbolMap
+    program: Program
+}
 
 export class Validator {
     #program: Program
@@ -32,146 +43,205 @@ export class Validator {
         return label
     }
 
-    #copyVariableMap = (variableMap: VariableMap): VariableMap =>
+    #copyIdentifierMap = (identifierMap: IdentifierMap): IdentifierMap =>
         new Map(
-            Array.from(variableMap).map(([key, value]) => [
+            Array.from(identifierMap).map(([key, value]) => [
                 key,
                 {
                     ...value,
-                    fromCurrentBlock: false,
+                    fromCurrentScope: false,
                 },
             ]),
         )
 
     #validateProgram = (
         program: Program,
-        variableMap: VariableMap,
+        identifierMap: IdentifierMap,
     ): Program => {
         return {
-            type: "program",
-            function: this.#validateFunction(program.function, variableMap),
-        }
-    }
-
-    #validateFunction = (
-        function_: FunctionDefinition,
-        variableMap: VariableMap,
-    ): FunctionDefinition => {
-        return {
-            type: "function",
-            name: function_.name,
-            body: this.#validateBlock(function_.body, variableMap, null),
-        }
-    }
-
-    #validateBlock = (
-        block: Block,
-        variableMap: VariableMap,
-        label: string | null,
-    ): Block => {
-        const items: BlockItem[] = []
-        for (const blockItem of block.items) {
-            items.push(this.#validateBlockItem(blockItem, variableMap, label))
-        }
-        return {
-            type: "block",
-            items,
-        }
-    }
-
-    #validateBlockItem = (
-        blockItem: BlockItem,
-        variableMap: VariableMap,
-        label: string | null,
-    ): BlockItem => {
-        if (blockItem.type === "declaration") {
-            return {
-                type: "declaration",
-                declaration: this.#validateDeclaration(
-                    blockItem.declaration,
-                    variableMap,
-                ),
-            }
-        }
-
-        return {
-            type: "statement",
-            statement: this.#validateStatement(
-                blockItem.statement,
-                variableMap,
-                label,
+            type: program.type,
+            declarations: program.declarations.map((declaration) =>
+                this.#validateDeclaration(declaration, identifierMap),
             ),
         }
     }
 
     #validateDeclaration = (
         declaration: Declaration,
-        variableMap: VariableMap,
+        identifierMap: IdentifierMap,
     ): Declaration => {
+        if (declaration.type === "functionDeclaration") {
+            return this.#validateFunctionDeclaration(declaration, identifierMap)
+        }
+
+        return this.#validateVariableDeclaration(declaration, identifierMap)
+    }
+
+    #validateFunctionDeclaration = (
+        declaration: FunctionDeclaration,
+        identifierMap: IdentifierMap,
+    ): FunctionDeclaration => {
+        if (identifierMap.has(declaration.name)) {
+            const prevEntry = identifierMap.get(declaration.name)
+            if (prevEntry?.fromCurrentScope && !prevEntry.hasLinkage) {
+                throw new Error("Duplicate declaration")
+            }
+        }
+
+        identifierMap.set(declaration.name, {
+            newName: declaration.name,
+            fromCurrentScope: true,
+            hasLinkage: true,
+        })
+
+        const innerMap = this.#copyIdentifierMap(identifierMap)
+
+        const newParams = declaration.parameters.map((parameter) =>
+            this.#validateParameter(parameter, innerMap),
+        )
+        const newBody =
+            declaration.body != null
+                ? this.#validateBlock(declaration.body, innerMap, null)
+                : null
+
+        return {
+            type: declaration.type,
+            name: declaration.name,
+            parameters: newParams,
+            body: newBody,
+        }
+    }
+
+    #validateParameter = (
+        parameter: Parameter,
+        identifierMap: IdentifierMap,
+    ): Parameter => {
         if (
-            variableMap.has(declaration.name) &&
-            variableMap.get(declaration.name)?.fromCurrentBlock
+            identifierMap.has(parameter) &&
+            identifierMap.get(parameter)?.fromCurrentScope
+        ) {
+            throw new Error("Duplicate variable declaration")
+        }
+
+        const uniqueName = this.#makeTemporary(parameter)
+        identifierMap.set(parameter, {
+            newName: uniqueName,
+            fromCurrentScope: true,
+            hasLinkage: false,
+        })
+
+        return uniqueName
+    }
+
+    #validateVariableDeclaration = (
+        declaration: VariableDeclaration,
+        identifierMap: IdentifierMap,
+    ): VariableDeclaration => {
+        if (
+            identifierMap.has(declaration.name) &&
+            identifierMap.get(declaration.name)?.fromCurrentScope
         ) {
             throw new Error("Duplicate variable declaration")
         }
         const uniqueName = this.#makeTemporary(declaration.name)
-        variableMap.set(declaration.name, {
+        identifierMap.set(declaration.name, {
             newName: uniqueName,
-            fromCurrentBlock: true,
+            fromCurrentScope: true,
+            hasLinkage: false,
         })
 
         let init: Expression | null = null
         if (declaration.init != null) {
-            init = this.#validateExpression(declaration.init, variableMap)
+            init = this.#validateExpression(declaration.init, identifierMap)
         }
         return {
-            type: "declaration",
+            type: declaration.type,
             name: uniqueName,
             init,
         }
     }
 
+    #validateBlock = (
+        block: Block,
+        identifierMap: IdentifierMap,
+        label: string | null,
+    ): Block => {
+        const items: BlockItem[] = []
+        for (const blockItem of block.items) {
+            items.push(this.#validateBlockItem(blockItem, identifierMap, label))
+        }
+        return {
+            type: block.type,
+            items,
+        }
+    }
+
+    #validateBlockItem = (
+        blockItem: BlockItem,
+        identifierMap: IdentifierMap,
+        label: string | null,
+    ): BlockItem => {
+        if (blockItem.type === "declaration") {
+            return {
+                type: blockItem.type,
+                declaration: this.#validateDeclaration(
+                    blockItem.declaration,
+                    identifierMap,
+                ),
+            }
+        }
+
+        return {
+            type: blockItem.type,
+            statement: this.#validateStatement(
+                blockItem.statement,
+                identifierMap,
+                label,
+            ),
+        }
+    }
+
     #validateStatement = (
         statement: Statement,
-        variableMap: VariableMap,
+        identifierMap: IdentifierMap,
         label: string | null,
     ): Statement => {
         if (statement.type === "return") {
             return {
-                type: "return",
+                type: statement.type,
                 expression: this.#validateExpression(
                     statement.expression,
-                    variableMap,
+                    identifierMap,
                 ),
             }
         }
 
         if (statement.type === "expression") {
             return {
-                type: "expression",
+                type: statement.type,
                 expression: this.#validateExpression(
                     statement.expression,
-                    variableMap,
+                    identifierMap,
                 ),
             }
         }
 
         if (statement.type === "if") {
             return {
-                type: "if",
+                type: statement.type,
                 condition: this.#validateExpression(
                     statement.condition,
-                    variableMap,
+                    identifierMap,
                 ),
                 then: this.#validateStatement(
                     statement.then,
-                    variableMap,
+                    identifierMap,
                     label,
                 ),
                 else: statement.else
                     ? this.#validateStatement(
                           statement.else,
-                          variableMap,
+                          identifierMap,
                           label,
                       )
                     : null,
@@ -179,12 +249,12 @@ export class Validator {
         }
 
         if (statement.type === "compound") {
-            const newVariableMap = this.#copyVariableMap(variableMap)
+            const newIdentifierMap = this.#copyIdentifierMap(identifierMap)
             return {
-                type: "compound",
+                type: statement.type,
                 block: this.#validateBlock(
                     statement.block,
-                    newVariableMap,
+                    newIdentifierMap,
                     label,
                 ),
             }
@@ -192,18 +262,17 @@ export class Validator {
 
         if (statement.type === "while") {
             const label = this.#makeLabel("loop")
-            const newVariableMap = this.#copyVariableMap(variableMap)
             const condition = this.#validateExpression(
                 statement.condition,
-                newVariableMap,
+                identifierMap,
             )
             return {
-                type: "while",
+                type: statement.type,
                 label,
                 condition,
                 body: this.#validateStatement(
                     statement.body,
-                    newVariableMap,
+                    identifierMap,
                     label,
                 ),
             }
@@ -211,18 +280,17 @@ export class Validator {
 
         if (statement.type === "doWhile") {
             const label = this.#makeLabel("loop")
-            const newVariableMap = this.#copyVariableMap(variableMap)
             const condition = this.#validateExpression(
                 statement.condition,
-                newVariableMap,
+                identifierMap,
             )
             return {
-                type: "doWhile",
+                type: statement.type,
                 label,
                 condition,
                 body: this.#validateStatement(
                     statement.body,
-                    newVariableMap,
+                    identifierMap,
                     label,
                 ),
             }
@@ -230,23 +298,26 @@ export class Validator {
 
         if (statement.type === "for") {
             const label = this.#makeLabel("loop")
-            const newVariableMap = this.#copyVariableMap(variableMap)
-            const init = this.#validateForInit(statement.init, newVariableMap)
+            const newIdentifierMap = this.#copyIdentifierMap(identifierMap)
+            const init = this.#validateForInit(statement.init, newIdentifierMap)
             const condition = statement.condition
-                ? this.#validateExpression(statement.condition, newVariableMap)
+                ? this.#validateExpression(
+                      statement.condition,
+                      newIdentifierMap,
+                  )
                 : null
             const post = statement.post
-                ? this.#validateExpression(statement.post, newVariableMap)
+                ? this.#validateExpression(statement.post, newIdentifierMap)
                 : null
             return {
-                type: "for",
+                type: statement.type,
                 label,
                 init,
                 condition,
                 post,
                 body: this.#validateStatement(
                     statement.body,
-                    newVariableMap,
+                    newIdentifierMap,
                     label,
                 ),
             }
@@ -264,48 +335,54 @@ export class Validator {
         }
 
         return {
-            type: "null",
+            type: statement.type,
         }
     }
 
-    #validateForInit = (init: ForInit, variableMap: VariableMap): ForInit => {
+    #validateForInit = (
+        init: ForInit,
+        identifierMap: IdentifierMap,
+    ): ForInit => {
         if (init.type === "declaration") {
             return {
-                type: "declaration",
-                declaration: this.#validateDeclaration(
+                type: init.type,
+                declaration: this.#validateVariableDeclaration(
                     init.declaration,
-                    variableMap,
+                    identifierMap,
                 ),
             }
         }
         return {
-            type: "expression",
+            type: init.type,
             expression: init.expression
-                ? this.#validateExpression(init.expression, variableMap)
+                ? this.#validateExpression(init.expression, identifierMap)
                 : null,
         }
     }
 
     #validateExpression = (
         expression: Expression,
-        variableMap: VariableMap,
+        identifierMap: IdentifierMap,
     ): Expression => {
         if (expression.type === "assignment") {
             if (expression.left.type !== "variable") {
                 throw new Error("Invalid lvalue!")
             }
             return {
-                type: "assignment",
-                left: this.#validateExpression(expression.left, variableMap),
-                right: this.#validateExpression(expression.right, variableMap),
+                type: expression.type,
+                left: this.#validateExpression(expression.left, identifierMap),
+                right: this.#validateExpression(
+                    expression.right,
+                    identifierMap,
+                ),
             }
         }
 
         if (expression.type === "variable") {
-            if (variableMap.has(expression.name)) {
+            if (identifierMap.has(expression.name)) {
                 return {
-                    type: "variable",
-                    name: variableMap.get(expression.name)!.newName,
+                    type: expression.type,
+                    name: identifierMap.get(expression.name)!.newName,
                 }
             }
             throw new Error("Undeclared variable!")
@@ -313,40 +390,63 @@ export class Validator {
 
         if (expression.type === "binary") {
             return {
-                type: "binary",
+                type: expression.type,
                 operator: expression.operator,
-                left: this.#validateExpression(expression.left, variableMap),
-                right: this.#validateExpression(expression.right, variableMap),
+                left: this.#validateExpression(expression.left, identifierMap),
+                right: this.#validateExpression(
+                    expression.right,
+                    identifierMap,
+                ),
             }
         }
 
         if (expression.type === "unary") {
             return {
-                type: "unary",
+                type: expression.type,
                 operator: expression.operator,
                 expression: this.#validateExpression(
                     expression.expression,
-                    variableMap,
+                    identifierMap,
                 ),
             }
         }
 
         if (expression.type === "conditional") {
             return {
-                type: "conditional",
+                type: expression.type,
                 condition: this.#validateExpression(
                     expression.condition,
-                    variableMap,
+                    identifierMap,
                 ),
-                then: this.#validateExpression(expression.then, variableMap),
-                else: this.#validateExpression(expression.else, variableMap),
+                then: this.#validateExpression(expression.then, identifierMap),
+                else: this.#validateExpression(expression.else, identifierMap),
             }
+        }
+
+        if (expression.type === "functionCall") {
+            if (identifierMap.has(expression.name)) {
+                const newName = identifierMap.get(expression.name)?.newName!
+                const newArgs = expression.args.map((arg) =>
+                    this.#validateExpression(arg, identifierMap),
+                )
+                return {
+                    type: expression.type,
+                    name: newName,
+                    args: newArgs,
+                }
+            }
+            throw new Error("Undeclared function!")
         }
 
         return expression
     }
 
-    validate = (): Program => {
-        return this.#validateProgram(this.#program, new Map())
+    validate = (): ValidateReturnType => {
+        const program = this.#validateProgram(this.#program, new Map())
+        const symbols = new TypeChecker().check(program)
+        return {
+            program,
+            symbols,
+        }
     }
 }

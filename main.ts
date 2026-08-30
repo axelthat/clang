@@ -11,14 +11,23 @@ import { Validator } from "./validator.ts"
 
 function test() {
     const args = process.argv.slice(2)
+
     let stage: string | undefined
     let location: string | undefined
-    if (args[0]?.startsWith("--")) {
-        stage = args[0]
-        location = args[1]
-    } else {
-        location = args[0]
+    let compileOnly = false
+
+    for (const argument of args) {
+        if (argument === "-c") {
+            compileOnly = true
+        } else if (argument.startsWith("--")) {
+            stage = argument
+        } else if (location === undefined) {
+            location = argument
+        } else {
+            throw new Error(`Unexpected argument: ${argument}`)
+        }
     }
+
     if (!location) {
         console.error("Usage: ./main.ts <source-file>")
         process.exitCode = 1
@@ -49,7 +58,7 @@ function test() {
                 const tacky = new Tacky(
                     new Validator(
                         new Parser(new Lexer(source)).parse(),
-                    ).validate(),
+                    ).validate().program,
                 )
                 tacky.tackle()
                 break
@@ -60,7 +69,7 @@ function test() {
                     new Tacky(
                         new Validator(
                             new Parser(new Lexer(source)).parse(),
-                        ).validate(),
+                        ).validate().program,
                     ).tackle(),
                 )
                 codegen.gen()
@@ -72,38 +81,56 @@ function test() {
                     new Tacky(
                         new Validator(
                             new Parser(new Lexer(source)).parse(),
-                        ).validate(),
+                        ).validate().program,
                     ).tackle(),
                 )
+
                 const assembly = codegen.gen()
                 const parsed = path.parse(location)
+
                 const assemblyPath = path.join(parsed.dir, `${parsed.name}.s`)
-                const executablePath = path.join(parsed.dir, `${parsed.name}`)
                 writeFileSync(assemblyPath, assembly, "utf8")
-                execFileSync("gcc", [assemblyPath, "-o", executablePath])
+
+                if (compileOnly) {
+                    const objectPath = path.join(parsed.dir, `${parsed.name}.o`)
+                    execFileSync("gcc", ["-c", assemblyPath, "-o", objectPath])
+                } else {
+                    const executablePath = path.join(parsed.dir, parsed.name)
+                    execFileSync("gcc", [assemblyPath, "-o", executablePath])
+                }
+
                 break
             }
         }
     }
     // const lexer = new Lexer(`
-    // int main(void) {
-    //     int x;
-    //     for(x = 10; x > 0; x = x - 1) {
-    //         if(x <= 9)
-    //             break;
-    //     }
-    //     return x;
+    // int sum(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j) {
+    //     return a + b + c + d + e + f + g + h + i + j;
     // }
-    //                                 `)
+
+    // int main(void) {
+    //     return sum(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+    // }
+
+    //     `)
     // // while (!lexer.isEOF()) {
     // //     console.log(lexer.next())
     // // }
     // const parser = new Parser(lexer)
-    // // // // // // parser.parse()
+    // // parser.parse()
     // // console.log(JSON.stringify(parser.parse(), null, 4))
+    // // const symbols = new TypeChecker().check(parser.parse())
+    // // console.log(JSON.stringify(Object.fromEntries(symbols), null, 4))
     // const validator = new Validator(parser.parse())
-    // // console.log(JSON.stringify(validator.validate(), null, 4))
-    // const tacky = new Tacky(validator.validate())
+    // // const v = validator.validate()
+    // // console.log(
+    // //     JSON.stringify(
+    // //         { ...v, symbols: Object.fromEntries(v.symbols) },
+    // //         null,
+    // //         4,
+    // //     ),
+    // // )
+    // const tacky = new Tacky(validator.validate().program)
     // // console.log(JSON.stringify(tacky.tackle(), null, 4))
     // const codegen = new Codegen(tacky.tackle())
     // const data = codegen.gen()

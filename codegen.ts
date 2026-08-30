@@ -7,6 +7,15 @@ import type {
 import { Writer } from "./writer.ts"
 
 export class Codegen {
+    static readonly #ARGUMENT_REGISTERS = [
+        "%edi",
+        "%esi",
+        "%edx",
+        "%ecx",
+        "%r8d",
+        "%r9d",
+    ] as const
+
     #program: TackyProgram
     #writer: Writer
 
@@ -38,6 +47,13 @@ export class Codegen {
             offsets.set(value.name, -bytes)
         }
 
+        for (const parameter of function_.parameters) {
+            allocate({
+                type: "variable",
+                name: parameter,
+            })
+        }
+
         for (const instruction of function_.instructions) {
             switch (instruction.type) {
                 case "unary":
@@ -59,6 +75,13 @@ export class Codegen {
 
                 case "return":
                     allocate(instruction.value)
+                    break
+
+                case "functionCall":
+                    for (const arg of instruction.args) {
+                        allocate(arg)
+                    }
+                    allocate(instruction.destination)
                     break
             }
         }
@@ -463,6 +486,57 @@ export class Codegen {
         this.#writer.write(`jmp ${returnLabel}`)
     }
 
+    #genFunctionCallInstruction = (
+        instruction: Extract<TackyInstruction, { type: "functionCall" }>,
+        offsets: Map<string, number>,
+    ) => {
+        const registerArgs = instruction.args.slice(
+            0,
+            Codegen.#ARGUMENT_REGISTERS.length,
+        )
+        const stackArgs = instruction.args.slice(
+            Codegen.#ARGUMENT_REGISTERS.length,
+        )
+
+        for (const [i, registerArg] of registerArgs.entries()) {
+            this.#copyValueToRegister(
+                registerArg,
+                Codegen.#ARGUMENT_REGISTERS[i]!,
+                offsets,
+            )
+        }
+
+        // Each stack argument occupies eight bytes. Add padding when necessary
+        // so %rsp is 16-byte aligned immediately before call.
+        const needsPadding = stackArgs.length % 2 !== 0
+        if (needsPadding) {
+            this.#writer.write("subq $8, %rsp")
+        }
+
+        for (const arg of [...stackArgs].reverse()) {
+            if (arg.type === "constant") {
+                this.#writer.write(`pushq $${arg.value}`)
+            } else {
+                const offset = this.#getStackOffset(arg.name, offsets)
+                this.#writer.write(`movl ${offset}(%rbp), %eax`)
+                this.#writer.write("pushq %rax")
+            }
+        }
+
+        this.#writer.write(`call ${instruction.name}`)
+
+        const bytesToRemove = stackArgs.length * 8 + (needsPadding ? 8 : 0)
+        if (bytesToRemove > 0) {
+            this.#writer.write(`addq $${bytesToRemove}, %rsp`)
+        }
+
+        const destinationOffset = this.#getStackOffset(
+            instruction.destination.name,
+            offsets,
+        )
+        this.#writer.write(`movl %eax, ${destinationOffset}(%rbp)`)
+    }
+
     #genInstruction = (
         instruction: TackyInstruction,
         offsets: Map<string, number>,
@@ -501,6 +575,10 @@ export class Codegen {
                 this.#genReturnInstruction(instruction, offsets, returnLabel)
                 break
 
+            case "functionCall":
+                this.#genFunctionCallInstruction(instruction, offsets)
+                break
+
             default:
                 throw new Error("Malformed Tacky instruction")
         }
@@ -524,6 +602,24 @@ export class Codegen {
 
         this.#writer.newline()
 
+        for (const [i, parameter] of function_.parameters.entries()) {
+            const destinationOffset = this.#getStackOffset(parameter, offsets)
+
+            if (i < Codegen.#ARGUMENT_REGISTERS.length) {
+                this.#writer.write(
+                    `movl ${Codegen.#ARGUMENT_REGISTERS[i]}, ${destinationOffset}(%rbp)`,
+                )
+            } else {
+                const sourceOffset = 16 + (i - 6) * 8
+                this.#writer.write(`movl ${sourceOffset}(%rbp), %r10d`)
+                this.#writer.write(`movl %r10d, ${destinationOffset}(%rbp)`)
+            }
+        }
+
+        if (function_.parameters.length > 0) {
+            this.#writer.newline()
+        }
+
         for (const instruction of function_.instructions) {
             this.#genInstruction(instruction, offsets, returnLabel)
         }
@@ -541,7 +637,13 @@ export class Codegen {
     }
 
     #genProgram = (program: TackyProgram) => {
-        this.#genFunction(program.function)
+        for (const [i, definition] of program.definitions.entries()) {
+            this.#genFunction(definition)
+
+            if (i < program.definitions.length - 1) {
+                this.#writer.newline()
+            }
+        }
 
         this.#writer.newline()
         this.#writer.write('.section .note.GNU-stack,"",@progbits')

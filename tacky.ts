@@ -4,7 +4,8 @@ import type {
     BlockItem,
     Declaration,
     Expression,
-    FunctionDefinition,
+    FunctionDeclaration,
+    Parameter,
     Program,
     Statement,
     UnaryOperator,
@@ -66,15 +67,22 @@ export type TackyInstruction =
           type: "return"
           value: TackyValue
       }
+    | {
+          type: "functionCall"
+          name: string
+          args: TackyValue[]
+          destination: TackyVariable
+      }
 
 export type TackyProgram = {
     type: "program"
-    function: TackyFunctionDefinition
+    definitions: TackyFunctionDefinition[]
 }
 
 export type TackyFunctionDefinition = {
     type: "function"
     name: string
+    parameters: Parameter[]
     instructions: TackyInstruction[]
 }
 
@@ -102,14 +110,20 @@ export class Tacky {
     #tackleProgram = (program: Program): TackyProgram => {
         return {
             type: "program",
-            function: this.#tackleFunction(program.function),
+            definitions: program.declarations
+                // temporary
+                .filter(
+                    (declaration) => declaration.type !== "variableDeclaration",
+                )
+                .filter((declaration) => declaration.body != null)
+                .map((declaration) => this.#tackleFunction(declaration)),
         }
     }
 
     #tackleFunction = (
-        function_: FunctionDefinition,
+        function_: FunctionDeclaration,
     ): TackyFunctionDefinition => {
-        const instructions = this.#tackleBlock(function_.body)
+        const instructions = this.#tackleBlock(function_.body!)
 
         // Falling off the end of main returns 0.
         instructions.push({
@@ -123,6 +137,7 @@ export class Tacky {
         return {
             type: "function",
             name: function_.name,
+            parameters: function_.parameters,
             instructions,
         }
     }
@@ -145,6 +160,10 @@ export class Tacky {
 
     #tackleDeclaration = (declaration: Declaration): TackyInstruction[] => {
         const instructions: TackyInstruction[] = []
+
+        if (declaration.type === "functionDeclaration") {
+            return instructions
+        }
 
         if (declaration.init !== null) {
             const source = this.#tackleExpression(
@@ -649,6 +668,26 @@ export class Tacky {
                     destination,
                 })
             }
+
+            return destination
+        }
+
+        if (expression.type === "functionCall") {
+            const args = expression.args.map((argument) =>
+                this.#tackleExpression(argument, instructions),
+            )
+
+            const destination: TackyVariable = {
+                type: "variable",
+                name: this.#getTmpVar(),
+            }
+
+            instructions.push({
+                type: "functionCall",
+                name: expression.name,
+                args,
+                destination,
+            })
 
             return destination
         }

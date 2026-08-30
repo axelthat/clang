@@ -227,6 +227,8 @@ export class Lexer {
                 return this.#makeToken("question")
             case ":":
                 return this.#makeToken("colon")
+            case ",":
+                return this.#makeToken("comma")
             default:
                 throw new Error(`Unknown token: "${this.#word()}"`)
         }

@@ -17,6 +17,7 @@ export type TokenType =
     | BinaryOperator
     | "question"
     | "colon"
+    | "comma"
     | "eof"
 
 export class Token {
